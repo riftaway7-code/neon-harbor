@@ -2068,7 +2068,25 @@ $('btnWsw').addEventListener('pointerdown', () => {
 });
 
 // ---- per-frame ----
+const DEV = { on: false, buf: '', t: 0 };
+function devKey(e) {
+  if (e.repeat || state !== 'play' || !/^Key[A-Z]$/.test(e.code)) return;
+  const now = performance.now(); if (now - DEV.t > 3000) DEV.buf = ''; DEV.t = now;
+  DEV.buf = (DEV.buf + e.code.slice(3)).slice(-3);
+  if (DEV.buf === 'DEV') {
+    DEV.buf = ''; DEV.on = !DEV.on;
+    if (DEV.on) { player.hp = 10000; deadT = 0; toast('Dev mode on', 'Infinite ammo and 10000 health', 'var(--amber)'); }
+    else { player.hp = 100; toast('Dev mode off', '', 'var(--cyan)'); }
+  }
+}
+function devTick() {
+  if (!DEV.on) return;
+  if (player.hp > 0 && player.hp < 10000) player.hp = 10000;
+  for (const t in wep.owned) { const W = WEAPONS[t]; if (!W || !wep.owned[t]) continue; wep.mag[t] = W.mag; wep.res[t] = 9999; }
+  if (wep.reloading > 0) wep.reloading = 0;
+}
 function updateWeapons(dt) {
+  devTick();
   if (menuOpen) jumpPress = false;
   wep.cd -= dt; if (wep.aimT > 0) wep.aimT -= dt;
   const W = wep.cur && WEAPONS[wep.cur];
@@ -5319,6 +5337,7 @@ let state = 'attract', started = false, camYaw = 0.6, camPitch = 0.32, camManual
 window.addEventListener('keydown', e => {
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
+  devKey(e);
   if (weaponKey(e.code) || extraKey(e)) return;
   keys[e.code] = true;
   if (e.code === 'Space') jumpPress = true;
