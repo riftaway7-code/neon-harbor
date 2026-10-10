@@ -2687,7 +2687,8 @@ function initExtras() {
 // ---- settings ----
 function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify({ vol: SYS.vol, quality: SYS.quality, fps: SYS.showFps })); } catch (e) { /* ignore */ } }
 function applyQuality() {
-  const ratio = { low: 1, med: 1.25, high: 1.75, rtx: 2 }[SYS.quality] || 1.75;
+  const touchDev = matchMedia('(pointer:coarse)').matches;
+  const ratio = touchDev ? { low: 0.75, med: 1, high: 1, rtx: 1 }[SYS.quality] || 1 : { low: 1, med: 1.25, high: 1.75, rtx: 2 }[SYS.quality] || 1.75;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ratio)); resize();
   rtxSetup(SYS.quality === 'rtx');
 }
@@ -2696,6 +2697,7 @@ const fpsEl = document.createElement('div');
 fpsEl.style.cssText = 'position:fixed;right:10px;top:calc(8px + env(safe-area-inset-top,0px));font:600 13px/1 var(--body);color:var(--dim);background:var(--panel);padding:4px 7px;display:none;pointer-events:none;font-variant-numeric:tabular-nums;z-index:3';
 document.body.appendChild(fpsEl);
 (function wireSettings() {
+  if (matchMedia('(pointer:coarse)').matches) SYS.quality = 'med';
   try { const s = JSON.parse(localStorage.getItem(SET_KEY) || 'null'); if (s) { SYS.vol = clamp(+s.vol || 0, 0, 1); SYS.quality = s.quality || 'high'; SYS.showFps = !!s.fps; } } catch (e) { /* defaults */ }
   const q = $('optQ'), v = $('optVol'), f = $('optFps'), r = $('optReset');
   if (q) { q.value = SYS.quality; q.addEventListener('change', () => { SYS.quality = q.value; applyQuality(); saveSettings(); }); }
@@ -2703,7 +2705,7 @@ document.body.appendChild(fpsEl);
   if (f) { f.checked = SYS.showFps; f.addEventListener('change', () => { SYS.showFps = f.checked; fpsEl.style.display = f.checked ? 'block' : 'none'; saveSettings(); }); }
   if (r) r.addEventListener('click', () => { if (r.dataset.arm === '1') { r.dataset.arm = ''; r.textContent = 'Reset progress'; resetGame(); } else { r.dataset.arm = '1'; r.textContent = 'Press again to confirm'; setTimeout(() => { r.dataset.arm = ''; r.textContent = 'Reset progress'; }, 3000); } });
   fpsEl.style.display = SYS.showFps ? 'block' : 'none';
-  if (SYS.quality !== 'high') applyQuality();
+  if (SYS.quality !== 'high' || matchMedia('(pointer:coarse)').matches) applyQuality();
 })();
 
 // ---- full map (Tab) ----
