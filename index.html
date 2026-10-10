@@ -223,6 +223,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script src="assets/js/houses.js"></script>
+<script src="assets/js/atmosphere.js"></script>
 <script>
 (() => {
 'use strict';
@@ -2123,7 +2124,10 @@ function discTex(inner, outer) { const c = document.createElement('canvas'); c.w
 const sunDisc = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), new THREE.MeshBasicMaterial({ map: discTex('#fff6d8', 'rgba(255,200,120,0.35)'), transparent: true, depthWrite: false, fog: false }));
 const moonDisc = new THREE.Mesh(new THREE.PlaneGeometry(110, 110), new THREE.MeshBasicMaterial({ map: discTex('#e8eeff', 'rgba(170,190,255,0.25)'), transparent: true, depthWrite: false, fog: false }));
 for (const d of [sunDisc, moonDisc]) { d.frustumCulled = false; d.renderOrder = -1; scene.add(d); }
+const ATM = typeof NH_ATMOS === 'function' ? NH_ATMOS({ THREE, scene, camera, renderer }) : null;
+if (ATM) { scene.background = null; sunDisc.visible = false; moonDisc.visible = false; stars.visible = false; }
 function updateSkyBodies(a) {
+  if (ATM) return;
   const dir = new THREE.Vector3(-Math.cos(a), Math.sin(a), -0.45).normalize(), rain = 1 - ENV.rain;
   sunDisc.position.copy(camera.position).addScaledVector(dir, 650); sunDisc.lookAt(camera.position); sunDisc.visible = dir.y > -0.05 && rain > 0.1; sunDisc.material.opacity = clamp(dir.y * 4 + 0.2, 0, 1) * rain;
   moonDisc.position.copy(camera.position).addScaledVector(dir, -650); moonDisc.lookAt(camera.position); moonDisc.visible = dir.y < 0.1 && rain > 0.1; moonDisc.material.opacity = clamp(-dir.y * 4 + 0.2, 0, 1) * rain;
@@ -2175,6 +2179,7 @@ function updateEnv(dt) {
   sun.position.set(-Math.cos(a) * 150, Math.max(28, Math.sin(a) * 130), -70);
   scene.fog.color.copy(CUR.fog).lerp(GREY, rn * 0.5); scene.fog.near = lerp(70, 30, rn); scene.fog.far = lerp(440, 230, rn);
   ENV.lamp = CUR.lamp; ENV.win = CUR.win;
+  if (ATM) ATM.update(dt, ENV, CUR, rn, a);
 
   ENV.skyT -= dt;
   if (ENV.skyT <= 0) {
@@ -4712,7 +4717,7 @@ const OCEAN = { tex: null, foam: [], buoys: [], beam: null, lamp: null, ang: 0 }
   for (let i = 0; i < 520; i++) { x.strokeStyle = 'rgba(200,236,255,' + (0.04 + rr() * 0.13).toFixed(2) + ')'; x.lineWidth = 1 + rr() * 2; const px = rr() * 512, py = rr() * 512, l = 14 + rr() * 46; x.beginPath(); x.moveTo(px, py); x.bezierCurveTo(px + l * 0.3, py - 4, px + l * 0.7, py + 4, px + l, py); x.stroke(); }
   for (let i = 0; i < 160; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.1 + rr() * 0.25).toFixed(2) + ')'; x.fillRect(rr() * 512, rr() * 512, 2, 1); }
   const wt = new THREE.CanvasTexture(c); wt.wrapS = wt.wrapT = THREE.RepeatWrapping; wt.repeat.set(60, 60); OCEAN.tex = wt;
-  const mat = new THREE.MeshLambertMaterial({ map: wt, emissive: 0x06182a });
+  const mat = ATM ? ATM.water : new THREE.MeshLambertMaterial({ map: wt, emissive: 0x06182a });
   const plane = (x0, x1, z0, z1) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), mat); m.position.set((x0 + x1) / 2, -0.14, (z0 + z1) / 2); scene.add(m); };
   const E0 = W + 18;                                           // water starts 18 m outside the fence
   plane(-2600, -E0, -1300, 1500);                              // west ocean
@@ -5565,7 +5570,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES };
+if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
