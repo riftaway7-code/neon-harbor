@@ -2205,6 +2205,7 @@ function updateEnv(dt) {
   if (ENV.skyT <= 0) {
     ENV.skyT = 0.4; paintSky();
     for (const set of wallMats) for (const m of set) m.emissiveIntensity = ENV.win;
+    if (CB && CB.winU) CB.winU.value = clamp(ENV.win * 0.55, 0, 0.6);
     const l = ENV.lamp, lm = scene.userData.lampMat, gm = scene.userData.glowMat;
     if (lm) lm.color.setRGB(lerp(0.33, 1, l), lerp(0.31, 0.77, l), lerp(0.28, 0.42, l));
     if (gm) gm.opacity = 0.4 * l;
