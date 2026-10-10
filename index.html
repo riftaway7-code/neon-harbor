@@ -1365,7 +1365,7 @@ function makeCarMesh(color, cop) {
   const nm = cop ? 'cop' : pick(['sedan', 'sedan', 'hatch', 'suv', 'coupe']), T = carType(nm), g = new THREE.Group();
   const body = new THREE.Mesh(T.paint, paintMat(cop ? 0xeceef4 : color)); g.add(body);
   g.add(new THREE.Mesh(T.detail, DETAIL_MAT));
-  const S = CAR_SPECS[nm], wheels = attachWheels(g, nm, T);
+  const S = CAR_SPECS[nm === 'cop' ? 'sedan' : nm], wheels = attachWheels(g, nm, T);
   const lit = new THREE.Mesh(T.lit, LIT_MAT); g.add(lit);
   const sh = new THREE.Mesh(G.blob, blobMat); sh.position.y = 0.04; g.add(sh);
   let lr = null, lb = null;
