@@ -469,7 +469,7 @@ window.NH_BUILDINGS = function (env) {
         sideProps(poly, ph, h, { balcony: style !== 'glass' && R() < 0.5 });
       } else {
         const wa = w * rr(0.5, 0.62), da = d, wb = w, db = d * rr(0.45, 0.58);
-        const A1 = rectPoly(x - (w - wa) / 2 + 0.05, z, wa, da - 1.6), B1 = rectPoly(x, z - (d - db) / 2 + 0.8, wb - 1.6, db);
+        const A1 = rectPoly(x - (w - wa) / 2 + 0.05, z, wa, da - 1.6), B1 = rectPoly(x, z - (d - db) / 2 + 0.65, wb - 1.9, db + 0.3);
         const ha = h, hb = h * rr(0.62, 0.8);
         body(A1, ph, ha, { style, tint, cornice: true, trimCol, ledge: STYLES[style].ledge });
         body(B1, ph, hb, { style, tint, cornice: true, trimCol, ledge: STYLES[style].ledge });
