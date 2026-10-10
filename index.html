@@ -2251,6 +2251,59 @@ const beamTex = (() => {
 })();
 const beamPool = new THREE.Mesh(flat(7.5, 16), new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 }));
 beamPool.visible = false; scene.add(beamPool);
+const HL = { n: 8, pools: [], cones: [], lamps: [], lampTex: null };
+(function buildHeadlights() {
+  const lc = document.createElement('canvas'); lc.width = lc.height = 64; const lx = lc.getContext('2d'), lg = lx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  lg.addColorStop(0, 'rgba(255,255,240,1)'); lg.addColorStop(0.18, 'rgba(255,244,214,0.85)'); lg.addColorStop(0.5, 'rgba(255,230,180,0.18)'); lg.addColorStop(1, 'rgba(255,220,160,0)');
+  lx.fillStyle = lg; lx.fillRect(0, 0, 64, 64); HL.lampTex = new THREE.CanvasTexture(lc);
+  const pc = document.createElement('canvas'); pc.width = 128; pc.height = 256; const px = pc.getContext('2d');
+  for (const cx of [0.32, 0.68]) {
+    px.save(); px.translate(cx * 128, 165); px.scale(1, 2.6);
+    const g = px.createRadialGradient(0, 0, 0, 0, 0, 50); g.addColorStop(0, 'rgba(255,246,220,0.8)'); g.addColorStop(0.3, 'rgba(255,240,205,0.5)'); g.addColorStop(0.65, 'rgba(255,232,190,0.2)'); g.addColorStop(1, 'rgba(255,228,180,0)');
+    px.fillStyle = g; px.fillRect(-64, -80, 128, 160); px.restore();
+  }
+  const fade = px.createLinearGradient(0, 256, 0, 0); fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(0.18, 'rgba(0,0,0,0)'); fade.addColorStop(0.9, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,1)');
+  px.globalCompositeOperation = 'destination-out'; px.fillStyle = fade; px.fillRect(0, 0, 128, 256);
+  const poolTex = new THREE.CanvasTexture(pc), poolGeo = flat(9, 18);
+  const coneGeo = new THREE.ConeGeometry(2.7, 15, 18, 1, true); coneGeo.translate(0, -7.5, 0); coneGeo.rotateX(-Math.PI / 2);
+  const pos = coneGeo.attributes.position, col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) { const k = Math.max(0, 1 - pos.getZ(i) / 15), v = 0.34 * k * k; col[i * 3] = v; col[i * 3 + 1] = v * 0.94; col[i * 3 + 2] = v * 0.8; }
+  coneGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const coneMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true });
+  for (let i = 0; i < HL.n; i++) {
+    const pm = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 }));
+    pm.material.color.setScalar(2); pm.visible = false; scene.add(pm); HL.pools.push(pm);
+    const cm = new THREE.Mesh(coneGeo, coneMat); cm.visible = false; cm.frustumCulled = false; scene.add(cm); HL.cones.push(cm);
+    const pair = [];
+    for (let k = 0; k < 2; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: HL.lampTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); s.visible = false; scene.add(s); pair.push(s); }
+    HL.lamps.push(pair);
+  }
+})();
+const _hlc = [];
+function headlightFx(dt) {
+  const dark = ENV.lamp > 0.25 || ENV.rain > 0.4, amt = dark ? clamp(ENV.lamp + ENV.rain * 0.5, 0.3, 1) : 0;
+  for (let i = 0; i < HL.n; i++) { HL.pools[i].visible = false; HL.cones[i].visible = false; HL.lamps[i][0].visible = false; HL.lamps[i][1].visible = false; }
+  if (!dark || state !== 'play') return;
+  _hlc.length = 0;
+  const cx = camera.position.x, cz = camera.position.z;
+  for (const c of cars) {
+    if (c.ctrl === 'wreck' || c.ctrl === 'parked' || c.hp <= 0) continue;
+    const d = (c.x - cx) * (c.x - cx) + (c.z - cz) * (c.z - cz);
+    if (d < 6400 || c.ctrl === 'player') _hlc.push([c.ctrl === 'player' ? -1 : d, c]);
+  }
+  _hlc.sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < Math.min(HL.n, _hlc.length); i++) {
+    const c = _hlc[i][1], sn = Math.sin(c.h), cs = Math.cos(c.h), L = c.m.S ? c.m.S.L : 2.1, pm = HL.pools[i], cm = HL.cones[i], big = c.ctrl === 'player' ? 1 : 0.8;
+    pm.visible = true; pm.position.set(c.x + sn * (L + 8.5), 0.12, c.z + cs * (L + 8.5)); pm.rotation.y = c.h + Math.PI; pm.scale.set(big, 1, big); pm.material.opacity = amt * 0.95;
+    cm.visible = true; cm.position.set(c.x + sn * (L + 0.1), 0.72, c.z + cs * (L + 0.1)); cm.rotation.set(0.07, c.h, 0); cm.material.opacity = 1;
+    for (let k = 0; k < 2; k++) {
+      const s = HL.lamps[i][k], side = k ? 0.62 : -0.62; s.visible = true;
+      s.position.set(c.x + sn * (L + 0.12) + cs * side, 0.72, c.z + cs * (L + 0.12) - sn * side);
+      const toCam = Math.max(0, (sn * (cx - c.x) + cs * (cz - c.z)) / Math.max(1, Math.hypot(cx - c.x, cz - c.z)));
+      const sc = 0.7 + toCam * 2.0; s.scale.set(sc, sc, 1); s.material.opacity = amt * (0.35 + toCam * 0.6);
+    }
+  }
+}
 const glowTex2 = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,60,60,0.95)'); g.addColorStop(1, 'rgba(255,40,40,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const brakeGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.9), new THREE.MeshBasicMaterial({ map: glowTex2, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 }));
 brakeGlow.visible = false; scene.add(brakeGlow);
@@ -2323,13 +2376,12 @@ function updEngine2() {
 }
 
 function updateVehicleFx(dt) {
+  headlightFx(dt);
   FX.hornT = Math.max(0, FX.hornT - dt);
   const car = state === 'play' ? player.car : null;
   const dark = ENV.lamp > 0.25 || ENV.rain > 0.4;
   if (car && car.hp > 0) {
     const sn = Math.sin(car.h), cs = Math.cos(car.h), spd = Math.hypot(car.vx, car.vz);
-    beamPool.visible = dark; beamPool.position.set(car.x + sn * 10.4, 0.1, car.z + cs * 10.4); beamPool.rotation.y = car.h + Math.PI;
-    beamPool.material.opacity = clamp(ENV.lamp + ENV.rain * 0.5, 0.25, 1) * 0.9;
     const braking = (inp.thr < -0.1 && car.vf > 1) || inp.hb;
     brakeGlow.visible = braking; if (braking) { brakeGlow.position.set(car.x - sn * 2.4, 0.78, car.z - cs * 2.4); brakeGlow.rotation.y = car.h + Math.PI; }
     FX.skidT -= dt;
