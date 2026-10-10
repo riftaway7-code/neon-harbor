@@ -218,6 +218,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/street_kit.js"></script>
 <script src="assets/models/cars.js"></script>
 <script src="assets/models/plants.js"></script>
+<script src="assets/models/farm_kit.js"></script>
 <script src="assets/models/human.js"></script>
 <script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
@@ -3227,38 +3228,29 @@ function gable(cx, by, cz, L, Wd, rise, roofC, wallC) {
 
 (function buildFarm() {
   // farmhouse, door on the west face toward the south road
-  const hx = 775, hz = -262, cream = 0xe8dcc0;
-  cb(14.4, 0.6, 10.4, hx, 0.3, hz, 0x77736c); cb(14, 5.5, 10, hx, 2.75, hz, cream); gable(hx, 5.5, hz, 14, 10, 3.6, 0x6e3a30, cream);
-  cb(1.3, 4, 1.3, hx + 3, 8.2, hz - 1.5, 0x8a5444);
-  cb(3, 0.3, 8, hx - 8.5, 0.3, hz, 0x8a6b4a); cb(3.6, 0.2, 8.4, hx - 8.6, 3.6, hz, 0x6e3a30);
-  for (const s of [-1, 1]) cb(0.25, 3.3, 0.25, hx - 9.8, 1.9, hz + s * 3.6, 0xeeeeee);
-  cb(0.15, 2.8, 1.4, hx - 7.05, 1.6, hz, 0x4a2e1c);
-  for (const s of [-1, 1]) win(0.15, 1.7, 1.6, hx - 7.05, 3, hz + s * 3.2);
-  for (const x of [-4, 0, 4]) for (const s of [-1, 1]) win(1.6, 1.7, 0.15, hx + x, 3, hz + s * 5.05);
+  const FARM = [];
+  const hx = 775, hz = -262;
+  FARM.push(['farmhouse', hx, hz, -Math.PI / 2]);
   solidAt(hx, hz, 14, 10, 9);
   // barn with the big door in the west gable
-  const bx = 805, bz = -190, red = 0xa5302a;
-  cb(22, 7, 16, bx, 3.5, bz, red); gable(bx, 7, bz, 22, 16, 4.2, 0x4a4f58, red);
-  cb(0.2, 5, 6, bx - 11.1, 2.5, bz, 0x6b221d);
-  cb(0.15, 0.3, 7.8, bx - 11.25, 2.5, bz, 0xf0efe8, 0.69); cb(0.15, 0.3, 7.8, bx - 11.25, 2.5, bz, 0xf0efe8, -0.69);
-  cb(0.2, 0.3, 6.4, bx - 11.2, 5.05, bz, 0xf0efe8); for (const s of [-1, 1]) cb(0.2, 5, 0.3, bx - 11.2, 2.5, bz + s * 3.1, 0xf0efe8);
-  win(0.2, 1.4, 1.4, bx - 11.1, 8.3, bz);
+  const bx = 805, bz = -190;
+  FARM.push(['barn', bx, bz, -Math.PI / 2]);
+  FARM.push(['tractor', bx - 15, bz + 6, 0.5]); solidAt(bx - 15, bz + 6, 2.4, 3.6, 2.6);
   solidAt(bx, bz, 22, 16, 11);
   // silo
   const sx = 826, sz = -186;
-  cyl(3.2, 16, sx, 8, sz, 0xb9bec4); CP.push({ g: USPH, m: MT(sx, 16, sz, 0, 0, 0, 3.2, 2.2, 3.2), c: 0x8d939b });
-  for (const y of [4, 8, 12]) cyl(3.28, 0.25, sx, y, sz, 0x8a9099);
+  FARM.push(['silo', sx, sz, 0]);
   solidAt(sx, sz, 6.6, 6.6, 16);
   // windmill tower and vane (blades are a separate rotating group)
   const wx = 735, wz = -150;
-  CP.push({ g: UCONE, m: MT(wx, 7, wz, 0, 0, 0, 2.2, 14, 2.2), c: 0x9a9fa6 }); cb(1.6, 1.2, 2.6, wx, 14.6, wz, 0x5a5f66); cb(3.2, 0.1, 1.3, wx + 2.6, 14.6, wz, 0xb04a3a);
+  FARM.push(['windmill', wx, wz, -Math.PI / 2]);
   solidAt(wx, wz, 4, 4, 14);
   // scarecrow in the wheat
-  cb(0.15, 2.2, 0.15, 480, 1.1, -430, 0x6b4a2a); cb(1.8, 0.14, 0.14, 480, 1.7, -430, 0x6b4a2a); CP.push({ g: USPH, m: MT(480, 2.45, -430, 0, 0, 0, 0.3, 0.3, 0.3), c: 0xd8b878 }); cb(0.9, 0.1, 0.9, 480, 2.8, -430, 0x4a3a28); cb(0.5, 0.35, 0.5, 480, 2.95, -430, 0x4a3a28);
+  FARM.push(['scarecrow', 480, -430, 0.4]);
   // hay bales in the plowed field
   for (let i = 0; i < 14; i++) {
     const x = crnd(425, 535), z = crnd(-605, -515);
-    CP.push({ g: UCYL, m: MT(x, 0.95, z, Math.PI / 2, 0, 0, 0.95, 1.5, 0.95), c: 0xcfae4a }); solidAt(x, z, 2, 2, 1.8);
+    FARM.push(['hay_bale', x, z, crnd(0, 3.14)]); solidAt(x, z, 2, 2, 1.8);
   }
   // pasture fence: posts and two rails, with real colliders
   const P = PASTURE, fc = 0x8a6a46;
@@ -3277,7 +3269,7 @@ function gable(cx, by, cz, L, Wd, rise, roofC, wallC) {
   let prev = null;
   for (let x = 372; x <= 852; x += 40) {
     if (Math.abs(x - 560) < 14 || Math.abs(x - 700) < 14) { prev = null; continue; }
-    cyl(0.18, 9, x, 4.5, -321, 0x5b4630); cb(0.15, 0.15, 3.2, x, 8.6, -321, 0x5b4630); solidAt(x, -321, 0.6, 0.6, 9);
+    FARM.push(['utility_pole', x, -321, Math.PI / 2]); solidAt(x, -321, 0.6, 0.6, 9);
     if (prev !== null) for (const dz of [-1.4, 1.4]) for (let k = 0; k < 8; k++) {
       const t0 = k / 8, t1 = (k + 1) / 8, sag = t => 0.9 * 4 * t * (1 - t);
       wires.push(lerp(prev, x, t0), 8.6 - sag(t0), -321 + dz, lerp(prev, x, t1), 8.6 - sag(t1), -321 + dz);
@@ -3288,6 +3280,12 @@ function gable(cx, by, cz, L, Wd, rise, roofC, wallC) {
   const wl = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x20242c })); wl.frustumCulled = false; scene.add(wl);
   // seawall quays where the grass meets the water
 
+  NHM.load('farm_kit').then(root => {
+    if (!root) return;
+    const buckets = {};
+    for (const f of FARM) (buckets[f[0]] || (buckets[f[0]] = [])).push({ x: f[1], z: f[2], r: f[3], sx: 1, sy: 1, sz: 1 });
+    NHM.place(scene, root, buckets);
+  });
   const mesh = new THREE.Mesh(mergeParts(CP, true), new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(mesh);
   const winMat = new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xffc46b, emissiveIntensity: 0.3 });
   scene.add(new THREE.Mesh(mergeParts(CW, false), winMat)); wallMats.push([winMat]);
