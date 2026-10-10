@@ -82,7 +82,7 @@ window.NH_HUMAN = function (env) {
     if (ax < 0.1 && cy > 1.43) return false;
     if (cy >= 0.9) {
       if (ax < 0.172) return cv.torso;
-      if (cv.armsLong) return cy > 0.865;
+      if (cv.armsLong) return cy > 0.912;
       if (cv.armsShort) return cy > 1.14 ? true : false;
       return false;
     }
