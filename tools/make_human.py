@@ -67,7 +67,7 @@ def build_points(female=False, build=1.0):
         B.blob((sx * 0.1, 1.43, 0.03), (0.07, 0.014, 0.014), (0, 0, sx * -0.12))
         B.blob((sx * 0.065 * hp, 0.95, -0.05), (0.08 * hp, 0.085, 0.07))
     B.blob((0, 1.10, 0.025), (0.115 * wa, 0.1, 0.085))
-    B.chain([((0, 1.47, -0.006), (0.07, 0.01, 0.07)), ((0, 1.55, -0.004), (0.062, 0.01, 0.062)), ((0, 1.62, 0.0), (0.058, 0.01, 0.058)), ((0, 1.675, 0.004), (0.052, 0.01, 0.054))], 0.01)
+    B.chain([((0, 1.47, -0.006), (0.082, 0.01, 0.072)), ((0, 1.55, -0.004), (0.072, 0.01, 0.066)), ((0, 1.62, 0.0), (0.066, 0.01, 0.062)), ((0, 1.675, 0.004), (0.058, 0.01, 0.058))], 0.01)
     for sx in (-1, 1):
         sa = 0.188 * sh
         B.blob((sx * sa, 1.395, 0.0), (0.06 * (0.85 if female else 1), 0.072, 0.064), u=12, v=8)
@@ -179,7 +179,7 @@ def gauss(p, c, sg, amp):
 
 HEAD_C = Vector((0, 1.705, 0.0))
 HEAD_S = 1.2
-HEAD_DY = -0.02
+HEAD_DY = -0.034
 
 
 def HY(y):
@@ -236,21 +236,21 @@ def head_blobs(B):
     head_loft(B)
     for c, r, u, v in [
         ((0, 1.7, 0.088), (0.011, 0.012, 0.01), 10, 8),
-        ((0, 1.682, 0.099), (0.0095, 0.02, 0.012), 10, 8),
-        ((0, 1.658, 0.113), (0.0125, 0.0125, 0.0125), 10, 8),
-        ((0, 1.692, 0.091), (0.012, 0.012, 0.012), 10, 8),
-        ((0, 1.675, 0.094), (0.011, 0.014, 0.015), 10, 8),
-        ((0, 1.664, 0.1), (0.011, 0.012, 0.014), 10, 8),
-        ((0, 1.637, 0.092), (0.021, 0.0065, 0.009), 10, 6),
-        ((0, 1.623, 0.09), (0.019, 0.0075, 0.009), 10, 6),
+        ((0, 1.682, 0.097), (0.0075, 0.02, 0.01), 10, 8),
+        ((0, 1.657, 0.111), (0.0098, 0.0105, 0.0105), 10, 8),
+        ((0, 1.692, 0.09), (0.009, 0.012, 0.01), 10, 8),
+        ((0, 1.675, 0.093), (0.009, 0.014, 0.013), 10, 8),
+        ((0, 1.664, 0.098), (0.009, 0.012, 0.012), 10, 8),
+        ((0, 1.637, 0.089), (0.025, 0.0065, 0.008), 10, 6),
+        ((0, 1.624, 0.088), (0.023, 0.0072, 0.008), 10, 6),
         ((0, 1.607, 0.078), (0.021, 0.013, 0.013), 10, 8),
     ]:
         B.blob(c, r, u=u, v=v)
     for sx in (-1, 1):
         for c, r, u, v in [
             ((0.031, 1.722, 0.082), (0.025, 0.007, 0.008), 10, 8),
-            ((0.052, 1.674, 0.056), (0.022, 0.017, 0.024), 10, 8),
-            ((0.0125, 1.652, 0.106), (0.0085, 0.008, 0.01), 8, 6),
+            ((0.05, 1.676, 0.05), (0.016, 0.011, 0.014), 10, 8),
+            ((0.011, 1.652, 0.102), (0.0065, 0.007, 0.008), 8, 6),
             ((0.032, 1.7155, 0.08), (0.0135, 0.0045, 0.0125), 10, 6),
             ((0.032, 1.6945, 0.08), (0.0125, 0.0035, 0.0115), 10, 6),
             ((0.078, 1.688, -0.004), (0.0095, 0.03, 0.021), 10, 8),
@@ -582,11 +582,11 @@ def make_extras(arm, female=False):
 
     def eyes(bm):
         for sx in (-1, 1):
-            bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=1.0, matrix=Matrix.Translation((sx * 0.032, 1.705, 0.0785)) @ Matrix.Diagonal((0.0115, 0.0105, 0.0115, 1)))
+            bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=1.0, matrix=Matrix.Translation((sx * 0.032, 1.705, 0.0785)) @ Matrix.Diagonal((0.0098, 0.0092, 0.0098, 1)))
 
     out["eyes"] = add_parts_object("eyes", arm, eyes)
     EC = head_t((0.032, 1.705, 0.0785))
-    paint_regions(out["eyes"], lambda v: (1.0 if math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0042 * HEAD_S else 0.5) if (world_game(v).z > EC.z + 0.0066 * HEAD_S and math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0086 * HEAD_S) else 0.0)
+    paint_regions(out["eyes"], lambda v: (1.0 if math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0026 * HEAD_S else 0.5) if (world_game(v).z > EC.z + 0.0054 * HEAD_S and math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0072 * HEAD_S) else 0.0)
 
     def brows(bm):
         for sx in (-1, 1):
@@ -594,7 +594,7 @@ def make_extras(arm, female=False):
                 t = i / 5
                 x = sx * (0.016 + 0.034 * t)
                 y = 1.727 + 0.006 * math.sin(t * math.pi * 0.8) - 0.004 * t
-                bmesh.ops.create_uvsphere(bm, u_segments=6, v_segments=4, radius=1.0, matrix=Matrix.Translation((x, y, 0.0955 - 0.006 * t)) @ Matrix.Diagonal((0.0085, 0.0034, 0.005, 1)))
+                bmesh.ops.create_uvsphere(bm, u_segments=6, v_segments=4, radius=1.0, matrix=Matrix.Translation((x, y, 0.0955 - 0.006 * t)) @ Matrix.Diagonal((0.0085, 0.0026, 0.004, 1)))
 
     out["brows"] = add_parts_object("brows", arm, brows)
 
@@ -639,7 +639,7 @@ def make_extras(arm, female=False):
 
 def color_everything(parts):
     h = lambda v: world_game(v)
-    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.027, (h(v).y - HY(1.63)) / 0.0125) < 1.0 and h(v).z > 0.07) else 0.0)
+    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.024, (h(v).y - HY(1.63)) / 0.0075) < 1.0 and h(v).z > 0.07) else 0.0)
     for sfx in ("_m", "_f"):
         paint_regions(parts["body" + sfx], lambda v: 0.0)
         paint_regions(parts["jacket" + sfx], lambda v: 0.5 if (h(v).y < 0.935 or h(v).y > 1.5 or (h(v).y < 0.905 and abs(h(v).x) > 0.15)) else 0.0)

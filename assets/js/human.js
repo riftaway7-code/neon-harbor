@@ -109,7 +109,7 @@ window.NH_HUMAN = function (env) {
         P[k * 3] = pa.array[i * 3]; P[k * 3 + 1] = pa.array[i * 3 + 1]; P[k * 3 + 2] = pa.array[i * 3 + 2];
         N[k * 3] = na.array[i * 3]; N[k * 3 + 1] = na.array[i * 3 + 1]; N[k * 3 + 2] = na.array[i * 3 + 2];
         const r = ca ? ca.array[i * cs] : 0, c = pal[r < 0.25 ? 0 : r < 0.75 ? 1 : 2], ao = ca && cs > 2 ? 0.45 + 0.55 * ca.array[i * cs + 1] : 1;
-        C[k * 3] = c[0] * ao; C[k * 3 + 1] = c[1] * ao; C[k * 3 + 2] = c[2] * ao;
+        const ak = it.stem === 'head' || it.stem === 'eyes' || it.stem === 'brows' ? 0.55 + 0.45 * ao : ao; C[k * 3] = c[0] * ak; C[k * 3 + 1] = c[1] * ak; C[k * 3 + 2] = c[2] * ak;
         for (let j = 0; j < 4; j++) { SI[k * 4 + j] = t.map[sa.array[i * 4 + j]] < 0 ? 0 : t.map[sa.array[i * 4 + j]]; SW[k * 4 + j] = wa.array[i * 4 + j]; }
       }
       const idx = g.index ? g.index.array : null, cnt = idx ? idx.length : n, body = it.stem === 'body';
