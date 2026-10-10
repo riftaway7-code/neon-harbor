@@ -5329,7 +5329,7 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });   // keep playing when focus moves elsewhere; just release held keys
 document.addEventListener('mousemove', e => {
   if (state !== 'play') return;
-  if (document.pointerLockElement === canvas || (e.buttons & 1)) { camYaw -= e.movementX * 0.0032; camPitch = clamp(camPitch + e.movementY * 0.0028, 0.05, 1.1); camManual = 1.4; }
+  if (document.pointerLockElement === canvas || (e.buttons & 1)) { camYaw -= e.movementX * 0.0032; camPitch = clamp(camPitch + e.movementY * 0.0028, -0.7, 1.1); camManual = 1.4; }
 });
 canvas.addEventListener('click', () => {
   if (state !== 'play' || document.pointerLockElement) return;
@@ -5339,7 +5339,7 @@ const looks = {};
 canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') looks[e.pointerId] = [e.clientX, e.clientY]; });
 canvas.addEventListener('pointermove', e => {
   const l = looks[e.pointerId]; if (!l || state !== 'play') return;
-  camYaw -= (e.clientX - l[0]) * 0.006; camPitch = clamp(camPitch + (e.clientY - l[1]) * 0.004, 0.05, 1.1); camManual = 1.4; l[0] = e.clientX; l[1] = e.clientY;
+  camYaw -= (e.clientX - l[0]) * 0.006; camPitch = clamp(camPitch + (e.clientY - l[1]) * 0.004, -0.7, 1.1); camManual = 1.4; l[0] = e.clientX; l[1] = e.clientY;
 });
 const endLook = e => { delete looks[e.pointerId]; delete pinch[e.pointerId]; };
 // zoom: mouse wheel, two-finger pinch, and the + / - buttons
@@ -5538,7 +5538,7 @@ function updateCamera(dt) {
   const k = 1 - Math.exp(-dt * (player.car ? 12 : 18));
   camera.position.x = lerp(camera.position.x, gx, k); camera.position.y = lerp(camera.position.y, gy, k); camera.position.z = lerp(camera.position.z, gz, k);
   if (shake > 0.01) { camera.position.x += rnd(-1, 1) * shake * 0.35; camera.position.y += rnd(-1, 1) * shake * 0.25; shake *= Math.exp(-5 * dt); }
-  camera.lookAt(tx, ty + 0.3, tz);
+  camera.lookAt(tx, ty + 0.3 + Math.max(0, 0.05 - camPitch) * dist * 1.7, tz);
   const spd = player.car ? Math.hypot(player.car.vx, player.car.vz) : 0;
   const fov = 65 + spd * 0.5; if (Math.abs(fov - camera.fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 0.1); camera.updateProjectionMatrix(); }
 }
