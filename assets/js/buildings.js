@@ -394,7 +394,11 @@ window.NH_BUILDINGS = function (env) {
     const trimCol = pick([[0.72, 0.7, 0.66], [0.66, 0.66, 0.68], [0.78, 0.74, 0.66]]);
     const shop = R() < 0.55 ? 0 : 1;
     const gtint = [0.95 + R() * 0.1, 0.95 + R() * 0.1, 0.95 + R() * 0.1];
-    const tintOf = k => { const t = pick(STYLES[k].tints), j = 0.94 + R() * 0.12; return [t[0] * j, t[1] * j, t[2] * j]; };
+    const COLORWAYS = [[1, 1, 1], [0.78, 0.8, 0.86], [1.12, 0.92, 0.74], [0.9, 1.0, 0.86], [0.62, 0.64, 0.7], [1.2, 0.82, 0.7], [0.85, 0.9, 1.15], [1.05, 0.78, 0.82], [0.72, 0.78, 0.74]];
+    const tintOf = k => {
+      const t = pick(STYLES[k].tints), j = 0.94 + R() * 0.12, cw = (k === 'brick' || k === 'warehouse') ? (R() < 0.3 ? pick(COLORWAYS) : [1, 1, 1]) : pick(COLORWAYS);
+      return [t[0] * cw[0] * j, t[1] * cw[1] * j, t[2] * cw[2] * j];
+    };
     const base = rectPoly(x, z, w, d);
     const glow = pick(['glowWarm', 'glowWarm', 'glowCool', 'glowPink']);
     if (h < 15) {
