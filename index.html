@@ -228,6 +228,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/aircraft.js"></script>
 <script src="assets/models/airport_kit.js"></script>
 <script src="assets/js/airport.js"></script>
+<script src="assets/js/nav.js"></script>
 <script>
 (() => {
 'use strict';
@@ -1421,7 +1422,7 @@ function laneSpawn() {
   const x = axis === 'x' ? p : road * PITCH - sgn * LANE, z = axis === 'x' ? road * PITCH + sgn * LANE : p;
   return { axis, road, sgn, p, x, z };
 }
-let AIR = null;
+let AIR = null, NAVG = null;
 function refPos() { return player.car ? player.car : player.plane ? player.plane : player; }
 function farFromCars(x, z, d) { for (const c of cars) if (Math.abs(c.x - x) < d && Math.abs(c.z - z) < d) return false; return true; }
 function spawnTraffic(kind, minD, maxD) {
@@ -2676,6 +2677,7 @@ function drawBigMap() {
   drawSouthMap(g, X, Z, k);
   drawLinkRoad(g, X, Z, k);
   if (AIR) AIR.drawMap(g, X, Z, k, true);
+  if (NAVG) NAVG.drawBig(g, X, Z, k);
   try { g.filter = 'none'; } catch (e) { /* unsupported */ }
   if (AIR) AIR.drawBlips(g, X, Z, k);
   const dot = (x, z, r, col) => { g.fillStyle = col; g.strokeStyle = '#0a0e18'; g.lineWidth = 2; g.beginPath(); g.arc(X(x), Z(z), r, 0, TAU); g.stroke(); g.fill(); };
@@ -3165,6 +3167,7 @@ const HINTS = [
   { id: 'race', when: () => !!player.car && RACE.state === 'idle' && Math.hypot(player.x - RACE.start.x, player.z - RACE.start.z) < 70, text: 'Drive into the purple ring to start a timed street race. Every checkpoint adds a few seconds.' },
   { id: 'rain', when: () => ENV.rain > 0.5, text: 'It is raining. Press N to clear the weather, or T to skip three hours.' },
   { id: 'lowhp', when: () => player.hp < 35 && player.hp > 0, text: 'Health is low. A first-aid kit at Harbor Arms restores it for $75.' },
+  { id: 'gps', when: () => !!player.car && STAT.time > 20, text: 'Press M while driving to open the GPS. Pick a place, press GO, and follow the yellow line on the minimap.' },
   { id: 'fly', when: () => !!AIR && !AIR.flying && Math.hypot(player.x - 1330, player.z + 300) < 160, text: 'Harborview Airport: press F next to an airliner at the gates to start flying passengers for cash. Follow the yellow line on the minimap.' },
   { id: 'heli', when: () => HELI.on && !HELI.leave, text: 'A police helicopter is tracking you. Get under cover or into the garage to lose it.' }
 ];
@@ -5318,7 +5321,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space') jumpPress = true;
   if (e.code === 'KeyF') toggleCar();
   if (e.code === 'KeyP') togglePause();
-  if (e.code === 'KeyM') toggleMute();
+  if (e.code === 'KeyM') { if (NAVG && (player.car || NAVG.open) && state === 'play') NAVG.toggle(); else toggleMute(); }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });   // keep playing when focus moves elsewhere; just release held keys
@@ -5547,6 +5550,7 @@ function drawMini() {
   mc.drawImage(mapC, -WORLD / 2, -WORLD / 2, WORLD, WORLD); drawCountryMap(mc);
   try { mc.filter = 'none'; } catch (e) { /* filter unsupported */ }
   for (const c of cars) if (c.kind === 'cop' && c.ctrl === 'cop') { mc.fillStyle = (Math.floor(clockT * 4) % 2) ? '#ff4d5a' : '#4d7dff'; mc.beginPath(); mc.arc(c.x, c.z, 4.2, 0, TAU); mc.fill(); }
+  if (NAVG) NAVG.drawMini(mc, s);
   mc.setTransform(1, 0, 0, 1, 0, 0);
   drawExtraMarkers(mc, th, s, hw, rp);
   if (AIR) AIR.drawRoute(mc, th, s, hw, rp);
@@ -5616,6 +5620,16 @@ function updAudio() {
 }
 function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; }
 
+function navPois() {
+  const l = [], o = objective();
+  if (o) l.push({ name: 'Current objective', x: o.x, z: o.z });
+  l.push({ name: 'Harbor Arms gun shop', x: SHOP.door.x, z: SHOP.door.z }, { name: "Pay 'n' Spray garage", x: GARAGE.x, z: GARAGE.z }, { name: 'Street race start', x: RACE.start.x, z: RACE.start.z },
+    { name: 'Pizza place', x: PIZZA.x, z: PIZZA.z }, { name: 'Super Mart', x: MART.cx, z: MART.cz + 9 }, { name: 'Downtown (Harbor Arms)', x: SPAWN.x, z: SPAWN.z },
+    { name: 'Linden Heights', x: 590, z: 206 }, { name: 'Southgate beach', x: 0, z: 760 }, { name: 'Millbrook Fuel', x: GAS.x, z: GAS.z }, { name: 'Millbrook farm', x: 737, z: -262 },
+    { name: 'North shore', x: 348, z: -502 }, { name: 'Harborview Airport', x: 1330, z: -250 });
+  return l;
+}
+NAVG = typeof NH_NAV === 'function' ? NH_NAV({ R, PITCH, SROADS, SGEW, SGNS, SGDX, SGDZ, toast, pos: () => refPos(), car: () => player.car, pois: navPois }) : null;
 AIR = typeof NH_AIRPORT === 'function' ? NH_AIRPORT({
   THREE, scene, camera, NHM, solids, ENV, player, keys, clamp, lerp, rnd, cvs, tex, po, mulberry, grassTex, groundDetail, GRASS, aniso: maxAniso, pointInSolid, emit, noiseBurst, toast,
   shake: v => { shake = Math.max(shake, v); }, audio: () => ({ AC, master, muted }), noiseBuffer: () => noiseBuf, refPos,
@@ -5636,7 +5650,7 @@ function update(dt) {
   clockT += 0;
   updatePickups(dt); updateParticles(dt); updateShop(dt); updateExtras(dt);
   if (scene.userData.beam) scene.userData.beam.rotation.y += dt * 0.6;
-  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); if (AIR) AIR.update(dt); }
+  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); if (AIR) AIR.update(dt); if (NAVG) NAVG.update(dt); }
   updateCamera(dt);
 }
 
@@ -5703,7 +5717,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { AIR, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
