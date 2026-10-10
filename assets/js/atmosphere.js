@@ -4,7 +4,7 @@ window.NH_ATMOS = function (env) {
   const NOISE = `
     float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
     float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }
-    float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return s; }
+    float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return s; }
   `;
   const SKYFN = `
     uniform vec3 uTop, uMid, uHor, uFog, uSunDir, uSunCol, uMoonDir;
@@ -54,6 +54,7 @@ window.NH_ATMOS = function (env) {
           float n = fbm(uv);
           float cov = mix(0.64, 0.26, uCover);
           float dens = smoothstep(cov, cov + 0.2, n);
+          if (dens > 0.004) {
           float n2 = fbm(uv + uSunDir.xz * 0.07);
           float lit = clamp(0.55 + (n - n2) * 4.0, 0.0, 1.0);
           float dayAmt = clamp(uSunH * 2.5 + 0.2, 0.0, 1.0);
@@ -65,6 +66,7 @@ window.NH_ATMOS = function (env) {
           cc += vec3(0.5, 0.55, 0.7) * uNight * 0.05 * max(dot(d, uMoonDir), 0.0);
           float fade = smoothstep(0.008, 0.22, d.y);
           col = mix(col, cc, dens * fade * (0.55 + 0.45 * (1.0 - uRain * 0.2)));
+          }
         }
         float below = 1.0 - smoothstep(0.0, 0.1, d.y);
         col = mix(col, uFog, below);
@@ -73,7 +75,7 @@ window.NH_ATMOS = function (env) {
     `
   });
   const dome = new THREE.Mesh(new THREE.SphereGeometry(820, 36, 18), skyMat);
-  dome.frustumCulled = false; dome.renderOrder = -1000; scene.add(dome);
+  dome.frustumCulled = false; dome.renderOrder = 1000; scene.add(dome);
 
   const WAVES = `
     float wave(vec2 p, float t, out vec2 grad) {

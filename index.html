@@ -1669,14 +1669,14 @@ function knockPed(p, c) {
 function updatePeds(dt) {
   const rp = refPos();
   for (const p of peds) {
-    const far = Math.abs(p.x - rp.x) > 140 || Math.abs(p.z - rp.z) > 140;
+    const pdx = p.x - rp.x, pdz = p.z - rp.z, pd2 = pdx * pdx + pdz * pdz, far = pd2 > 8100;
     p.g.visible = !far;
     if (p.state === 'walk') {
       p.s += p.dir * p.speed * dt; if (Math.random() < dt * 0.04) p.dir = -p.dir;
       const q = perim(p.b.cx, p.b.cz, p.s, p.off); p.x = q[0]; p.z = q[1];
       const tg = TANG[q[2]], fx = tg[0] * p.dir, fz = tg[1] * p.dir;
       p.g.rotation.y += angDiff(p.g.rotation.y, Math.atan2(fx, fz)) * Math.min(1, dt * 8);
-      p.ph += dt * 5.2 * p.speed; poseHuman(p.rig, p.ph, 0.3 + (p.speed - 1.1) * 0.3, p.speed); p.g.position.set(p.x, Math.abs(Math.sin(p.ph)) * 0.025, p.z);
+      p.ph += dt * 5.2 * p.speed; if (pd2 < 3600 || (p.poseT = (p.poseT || 0) + 1) % 4 === 0) poseHuman(p.rig, p.ph, 0.3 + (p.speed - 1.1) * 0.3, p.speed); p.g.position.set(p.x, Math.abs(Math.sin(p.ph)) * 0.025, p.z);
       if (!far) for (const c of cars) {
         if (Math.abs(c.x - p.x) > 5 || Math.abs(c.z - p.z) > 5) continue;
         const spd = Math.hypot(c.vx, c.vz); if (spd < 3) continue;
@@ -5545,6 +5545,7 @@ function rtxBuild() {
   comp.addPass(new THREE.RenderPass(scene, camera));
   const sao = new THREE.SAOPass(scene, camera, false, true);
   sao.params.saoBias = 0.6; sao.params.saoIntensity = 0.012; sao.params.saoScale = 18; sao.params.saoKernelRadius = 24; sao.params.saoBlurRadius = 6; sao.params.saoBlurStdDev = 3; sao.params.saoBlurDepthCutoff = 0.02;
+  sao.enabled = false;
   comp.addPass(sao);
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.55, 0.86);
   comp.addPass(bloom);
@@ -5555,6 +5556,7 @@ function rtxBuild() {
 function rtxMarkShadows() {
   scene.traverse(o => {
     if (!o.isMesh || o.userData.noShadow) return;
+    if (o.isSkinnedMesh) { if (o.castShadow) o.castShadow = false; if (o.receiveShadow !== RTX.on) o.receiveShadow = RTX.on; return; }
     const m = Array.isArray(o.material) ? o.material[0] : o.material;
     if (!m || m.isMeshBasicMaterial || m.transparent || m.depthWrite === false) return;
     if (o.castShadow !== RTX.on || o.receiveShadow !== RTX.on) { o.castShadow = RTX.on; o.receiveShadow = RTX.on; }
@@ -5571,7 +5573,7 @@ function rtxSetup(on) {
   sun.castShadow = on;
   if (on) {
     const sh = sun.shadow, cam = sh.camera;
-    sh.mapSize.set(4096, 4096); cam.left = -110; cam.right = 110; cam.top = 110; cam.bottom = -110; cam.near = 1; cam.far = 520;
+    sh.mapSize.set(2048, 2048); cam.left = -80; cam.right = 80; cam.top = 80; cam.bottom = -80; cam.near = 1; cam.far = 520;
     sh.bias = -0.0006; sh.normalBias = 0.35;
     if (sh.map) { sh.map.dispose(); sh.map = null; }
     scene.add(sun.target);
@@ -5590,7 +5592,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
