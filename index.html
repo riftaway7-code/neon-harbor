@@ -2465,7 +2465,7 @@ function updateHeli(dt) {
   if (!HELI.on) return;
   let tx, ty, tz;
   if (HELI.leave) { tx = p.x + 120; ty = 95; tz = p.z + 60; }
-  else { HELI.ang += dt * 0.45; tx = rp.x + Math.cos(HELI.ang) * 24; tz = rp.z + Math.sin(HELI.ang) * 24; ty = 30; }
+  else { HELI.ang += dt * 0.3; tx = rp.x + Math.cos(HELI.ang) * 42; tz = rp.z + Math.sin(HELI.ang) * 42; ty = 42; }
   _hd.set(tx - p.x, ty - p.y, tz - p.z); const d = _hd.length();
   if (d > 0.05) p.addScaledVector(_hd, Math.min(d, 28 * dt) / d);
   const face = HELI.leave ? Math.atan2(_hd.x, _hd.z) : Math.atan2(rp.x - p.x, rp.z - p.z);
@@ -2486,10 +2486,11 @@ function updateHeli(dt) {
   // shooting
   HELI.fireT -= dt;
   if (HELI.fireT <= 0) {
-    HELI.fireT = rnd(0.8, 1.4);
-    if (Math.hypot(rp.x - p.x, rp.z - p.z) < 48) {
-      if (player.car) damageCar(player.car, 3); else hurtPlayer(4);
-      spawnTracer(p.x, p.y - 1, p.z, rp.x + rnd(-1, 1), 1.2, rp.z + rnd(-1, 1)); sfxShot(true); shake = Math.max(shake, 0.1);
+    HELI.fireT = rnd(2.2, 3.8);
+    if (Math.hypot(rp.x - p.x, rp.z - p.z) < 60 && !SHOP.inside && lineClear(p.x, p.z, rp.x, rp.z)) {
+      const hit = Math.random() < 0.5;
+      if (hit) { if (player.car) damageCar(player.car, 2.5); else hurtPlayer(3); }
+      spawnTracer(p.x, p.y - 1, p.z, rp.x + (hit ? rnd(-1, 1) : rnd(-7, 7)), 1.2, rp.z + (hit ? rnd(-1, 1) : rnd(-7, 7))); sfxShot(true); shake = Math.max(shake, hit ? 0.06 : 0.03);
     }
   }
 }
