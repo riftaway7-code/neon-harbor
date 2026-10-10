@@ -210,9 +210,6 @@ def build_detail(S, name, cop=False, kind="sedan"):
     belt, topY = cb[0][1], cb[1][1]
     ar = wr + 0.1
     build_glass(S, m)
-    for sx in (-1, 1):
-        for z in (wz, -wz):
-            wheel(m, S, sx * 0.8, z)
     for z in (wz, -wz):
         m.cube((0, (by + wcy + ar) / 2, z), (1.4, wcy + ar - by, ar * 2), (0.04, 0.04, 0.05))
     m.cube((0, by + 0.02, 0), (1.5, 0.04, 2 * L - 0.2), (0.04, 0.04, 0.05))
@@ -267,6 +264,26 @@ def build_detail(S, name, cop=False, kind="sedan"):
     return m
 
 
+def build_wheel(S, name):
+    m = Mesh(name)
+    wr = S["wr"]
+    x = 0.0
+    m.cylx((x, 0, 0), wr, wr, 0.24, TIRE, sides=28)
+    m.cylx((x + 0.01, 0, 0), wr * 0.84, wr * 0.84, 0.25, (0.11, 0.115, 0.125), sides=28)
+    m.cylx((x + 0.07, 0, 0), wr * 0.64, wr * 0.64, 0.05, RIM, sides=24)
+    m.cylx((x + 0.1, 0, 0), wr * 0.58, wr * 0.58, 0.02, (0.55, 0.58, 0.62), sides=24)
+    for i in range(5):
+        a = i / 5 * math.tau
+        m.bar((x + 0.115, 0, 0), (x + 0.115, math.sin(a) * wr * 0.55, math.cos(a) * wr * 0.55), 0.03, 0.09, RIM)
+    m.cylx((x + 0.12, 0, 0), wr * 0.2, wr * 0.2, 0.03, HUB, sides=14)
+    m.cylx((x + 0.135, 0, 0), wr * 0.07, wr * 0.07, 0.03, CHROME, sides=6)
+    for i in range(5):
+        a = i / 5 * math.tau + 0.3
+        m.cylx((x + 0.125, math.sin(a) * wr * 0.14, math.cos(a) * wr * 0.14), 0.014, 0.014, 0.02, CHROME, sides=6)
+    m.cylx((x - 0.04, 0, 0), wr * 0.32, wr * 0.32, 0.18, (0.35, 0.36, 0.4), sides=16)
+    return m
+
+
 def build_lit(S, name):
     m = Mesh(name)
     L = S["L"]
@@ -316,6 +333,9 @@ def run(export=True):
             ob = builder().finish(mat)
             ob.location = (col * 5.0, 0, 0)
             made.append(ob)
+        wob = build_wheel(S, "car_%s_wheel" % kind).finish(mv)
+        wob.location = (col * 5.0, 3, 0)
+        made.append(wob)
         col += 1
     ob = build_detail(SPECS["sedan"], "car_cop_detail", True, "sedan").finish(mv)
     ob.location = (col * 5.0, 0, 0)

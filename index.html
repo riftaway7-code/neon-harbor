@@ -1342,17 +1342,30 @@ function glSwap(T, n) {
   if (!CARGL.root) return T;
   const g = nm => { const o = CARGL.root.getObjectByName(nm); return o && o.geometry ? o.geometry : null; };
   const p = GLPARTS[n], a = g(p[0]), b = g(p[1]), c = g(p[2]);
-  if (a && b && c) { T.paint = a; T.detail = b; T.lit = c; }
+  if (a && b && c) { T.paint = a; T.detail = b; T.lit = c; const w = g('car_' + (n === 'cop' ? 'sedan' : n) + '_wheel'); if (w) T.wheel = w; }
   return T;
 }
 const carType = n => carTypes[n] || (carTypes[n] = glSwap(buildCarType(CAR_SPECS[n === 'cop' ? 'sedan' : n], n === 'cop'), n));
 const policeTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#f2f4f8'; x.font = 'bold 46px "Arial Narrow",Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('POLICE', 128, 34); return new THREE.CanvasTexture(c); })();
 const policeMat = new THREE.MeshBasicMaterial({ map: policeTex, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const policeGeo = new THREE.PlaneGeometry(1.1, 0.275);
+function attachWheels(g, nm, T) {
+  const wheels = [];
+  if (!T.wheel || g.userData.wheeled) return wheels;
+  g.userData.wheeled = true;
+  const S = CAR_SPECS[nm === 'cop' ? 'sedan' : nm];
+  for (const sx of [-1, 1]) for (const sz of [1, -1]) {
+    const piv = new THREE.Group(), spin = new THREE.Mesh(T.wheel, DETAIL_MAT);
+    piv.position.set(sx * 0.8, S.wcy, sz * S.wz); spin.scale.x = sx; piv.add(spin); g.add(piv);
+    wheels.push({ piv, spin, front: sz > 0 });
+  }
+  return wheels;
+}
 function makeCarMesh(color, cop) {
   const nm = cop ? 'cop' : pick(['sedan', 'sedan', 'hatch', 'suv', 'coupe']), T = carType(nm), g = new THREE.Group();
   const body = new THREE.Mesh(T.paint, paintMat(cop ? 0xeceef4 : color)); g.add(body);
   g.add(new THREE.Mesh(T.detail, DETAIL_MAT));
+  const S = CAR_SPECS[nm], wheels = attachWheels(g, nm, T);
   const lit = new THREE.Mesh(T.lit, LIT_MAT); g.add(lit);
   const sh = new THREE.Mesh(G.blob, blobMat); sh.position.y = 0.04; g.add(sh);
   let lr = null, lb = null;
@@ -1363,7 +1376,7 @@ function makeCarMesh(color, cop) {
   }
   g.userData.ctype = nm;
   scene.add(g);
-  return { g, body, roof: body, lit, lr, lb, type: nm };
+  return { g, body, roof: body, lit, lr, lb, type: nm, wheels, roll: 0, steer: 0, S };
 }
 const cars = [];
 function newCar(kind, ctrl) {
@@ -1380,12 +1393,14 @@ NHM.load('cars').then(root => {
     const T = carTypes[c.m.type], ch = c.m.g.children;
     if (!T) continue;
     ch[0].geometry = T.paint; ch[1].geometry = T.detail; ch[2].geometry = T.lit;
+    c.m.wheels = attachWheels(c.m.g, c.m.type, T);
   }
   scene.traverse(o => {
     if (!o.userData || !o.userData.ctype || o.children.length < 3 || o.userData.glDone) return;
     const T = carTypes[o.userData.ctype]; if (!T) return;
     o.userData.glDone = true;
     o.children[0].geometry = T.paint; o.children[1].geometry = T.detail; o.children[2].geometry = T.lit;
+    attachWheels(o, o.userData.ctype, T);
   });
 });
 function placeOnLane(c, axis, road, sgn, p) {
@@ -1592,6 +1607,11 @@ function updateCars(dt) {
     resolveCarSolids(c);
     clampXZ(c, 6);
     const g = c.m.g; g.position.set(c.x, 0, c.z); g.rotation.y = c.h;
+    if (c.m.wheels.length) {
+      const M = c.m, rad = M.S.wr, st = c.ctrl === 'player' ? inp.steer * 0.5 : 0;
+      M.roll += (c.vf !== undefined && c.ctrl !== 'wreck' ? (c.ctrl === 'ai' ? Math.hypot(c.vx, c.vz) : c.vf) : 0) * dt / rad; M.steer += (st - M.steer) * Math.min(1, dt * 10);
+      for (const w of M.wheels) { w.spin.rotation.x = M.roll; if (w.front) w.piv.rotation.y = M.steer; }
+    }
     if (c.m.lr) {
       c.blinkT += dt;
       if (c.ctrl !== 'wreck') { const on = (c.blinkT % 0.36) < 0.18; c.m.lr.visible = on; c.m.lb.visible = !on; }
@@ -5570,7 +5590,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM };
+window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
