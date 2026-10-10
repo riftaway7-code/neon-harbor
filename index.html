@@ -229,6 +229,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/airport_kit.js"></script>
 <script src="assets/js/airport.js"></script>
 <script src="assets/js/nav.js"></script>
+<script src="assets/js/sound.js"></script>
 <script>
 (() => {
 'use strict';
@@ -1422,7 +1423,7 @@ function laneSpawn() {
   const x = axis === 'x' ? p : road * PITCH - sgn * LANE, z = axis === 'x' ? road * PITCH + sgn * LANE : p;
   return { axis, road, sgn, p, x, z };
 }
-let AIR = null, NAVG = null;
+let AIR = null, NAVG = null, SND = null;
 function refPos() { return player.car ? player.car : player.plane ? player.plane : player; }
 function farFromCars(x, z, d) { for (const c of cars) if (Math.abs(c.x - x) < d && Math.abs(c.z - z) < d) return false; return true; }
 function spawnTraffic(kind, minD, maxD) {
@@ -1932,6 +1933,7 @@ function gunModel(type) {
 function equip(type) {
   const arm = player.rig.elbowR; if (gunMesh) arm.remove(gunMesh);
   wep.cur = type; wep.reloading = 0; gunMesh = type ? gunModel(type) : null; if (gunMesh) arm.add(gunMesh);
+  if (type && SND) SND.equip();
 }
 function holdWeaponPose() {
   if (!wep.cur || player.car) return;
@@ -1997,7 +1999,7 @@ function fireWeapon(W) {
 }
 function startReload() {
   const W = wep.cur && WEAPONS[wep.cur];
-  if (W && wep.reloading <= 0 && wep.mag[wep.cur] < W.mag && wep.res[wep.cur] > 0) wep.reloading = W.reload;
+  if (W && wep.reloading <= 0 && wep.mag[wep.cur] < W.mag && wep.res[wep.cur] > 0) { wep.reloading = W.reload; if (SND) SND.reload(); }
 }
 
 // ---- shop menu ----
@@ -4903,7 +4905,7 @@ function updateWade(dt) {
   player.wadeK = 1 - Math.min(1, d / 10) * 0.5;
   const rig = player.rig; if (rig && rig.blob) rig.blob.visible = player.sink < 0.05;
   if (d > 0.5) {
-    if (!wadeToasted) { wadeToasted = true; toast('SPLASH', 'Water is cold. Swim back to shore.', '#5ec8ff'); }
+    if (!wadeToasted) { wadeToasted = true; if (SND) SND.splash(); toast('SPLASH', 'Water is cold. Swim back to shore.', '#5ec8ff'); }
     wadeSplashT -= dt;
     if (wadeSplashT <= 0 && Math.hypot(player.vx, player.vz) > 1) {
       wadeSplashT = 0.12;
@@ -5393,7 +5395,7 @@ function toast(big, small, color) {
   el.toast.innerHTML = big + (small ? '<small>' + small + '</small>' : '');
   el.toast.style.color = color || 'var(--fg)'; el.toast.classList.add('show'); toastT = 2.4;
 }
-function addCash(v) { cash += v; cashPop.textContent = '+$' + v; cashPop.style.opacity = 1; popT = 1.4; }
+function addCash(v) { if (SND) SND.cash(); cash += v; cashPop.textContent = '+$' + v; cashPop.style.opacity = 1; popT = 1.4; }
 function addHeat(v) { if (state === 'play' && deadT <= 0) heat = Math.min(150, heat + v); }
 function hurtPlayer(a) { if (deadT > 0) return; const ab = Math.min(player.armor || 0, a * 0.6); player.armor = (player.armor || 0) - ab; player.hp -= a - ab; player.hurtT = 0; shake = Math.max(shake, Math.min(0.6, a / 25)); }
 
@@ -5452,11 +5454,13 @@ function toggleCar() {
   if (player.car) exitCar(false); else { const c = nearestCar(); if (c) enterCar(c); }
 }
 function enterCar(c) {
+  if (SND) SND.door();
   if (c.ctrl === 'ai') addHeat(14);
   player.car = c; c.ctrl = 'player'; c.mode = 'grid'; player.g.visible = false; player.vx = player.vz = 0;
 }
 function exitCar(eject) {
   const c = player.car; if (!c) return;
+  if (SND) SND.door();
   player.car = null; c.ctrl = 'parked';
   player.x = c.x + Math.cos(c.h) * 2.4; player.z = c.z - Math.sin(c.h) * 2.4; player.y = 0; player.h = c.h; player.g.visible = true; player.vx = player.vz = 0;
   if (eject) { player.vy = 4; player.grounded = false; hurtPlayer(8); }
@@ -5629,6 +5633,20 @@ function navPois() {
     { name: 'North shore', x: 348, z: -502 }, { name: 'Harborview Airport', x: 1330, z: -250 });
   return l;
 }
+const COAST = (() => { const W = WORLD / 2; return [[-W - 18, -W, -W - 18, W], [-W, W + 18, 340, W + 18], [SGW.x0, SGW.shore, SGW.x1, SGW.shore], [348, 346, 872, 346], [2260, -640, 2260, -60]]; })();
+function coastDist(x, z) { let m = 1e9; for (const s of COAST) { const dx = s[2] - s[0], dz = s[3] - s[1], L2 = dx * dx + dz * dz || 1, t = clamp(((x - s[0]) * dx + (z - s[1]) * dz) / L2, 0, 1); m = Math.min(m, Math.hypot(x - (s[0] + dx * t), z - (s[1] + dz * t))); } return m; }
+function onGrassAt(x, z) {
+  if (x > 348) { if (z > 345 && x < 880) return false; if (z < -60 && nearRoad(x, z, 6)) return false; if (z >= -60 && z < 345 && nearestRoad(x, z) < 8) return false; return true; }
+  for (const b of blocks) if (b.park && Math.abs(x - b.cx) < 29 && Math.abs(z - b.cz) < 29) return true;
+  return false;
+}
+SND = typeof NH_SOUND === 'function' ? NH_SOUND({
+  camera, player, audio: () => ({ AC, master, muted }), muted: () => muted, state: () => state, ref: refPos, car: () => player.car, plane: () => player.plane, inShop: () => SHOP.inside,
+  onSand: (x, z) => coastDist(x, z) < 16, onGrass: onGrassAt, coastDist, rain: () => ENV.rain, hour: () => ENV.hour,
+  trafficNear: (x, z, r) => { let n = 0; for (const c of cars) if (c.ctrl === 'ai' && Math.abs(c.x - x) < r && Math.abs(c.z - z) < r) n++; return n; },
+  trafficList: (x, z, r, k) => cars.filter(c => (c.ctrl === 'ai' || c.ctrl === 'cop') && Math.abs(c.x - x) < r && Math.abs(c.z - z) < r).sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z)).slice(0, k),
+  pedNear: (x, z, r) => { let b = null, bd = r; for (const p of peds) { if (p.state !== 'walk' || !p.g.visible) continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; b = p; } } return b ? { x: b.x, z: b.z, female: !!(b.rig && b.rig.female) } : null; }
+}) : null;
 NAVG = typeof NH_NAV === 'function' ? NH_NAV({ R, PITCH, SROADS, SGEW, SGNS, SGDX, SGDZ, toast, pos: () => refPos(), car: () => player.car, pois: navPois }) : null;
 AIR = typeof NH_AIRPORT === 'function' ? NH_AIRPORT({
   THREE, scene, camera, NHM, solids, ENV, player, keys, clamp, lerp, rnd, cvs, tex, po, mulberry, grassTex, groundDetail, GRASS, aniso: maxAniso, pointInSolid, emit, noiseBurst, toast,
@@ -5650,7 +5668,7 @@ function update(dt) {
   clockT += 0;
   updatePickups(dt); updateParticles(dt); updateShop(dt); updateExtras(dt);
   if (scene.userData.beam) scene.userData.beam.rotation.y += dt * 0.6;
-  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); if (AIR) AIR.update(dt); if (NAVG) NAVG.update(dt); }
+  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); if (AIR) AIR.update(dt); if (NAVG) NAVG.update(dt); if (SND) SND.update(dt); }
   updateCamera(dt);
 }
 
@@ -5717,7 +5735,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { get AC() { return AC; }, get master() { return master; }, SND, AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
