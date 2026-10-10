@@ -216,6 +216,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/grass.js"></script>
 <script src="assets/models/city_props.js"></script>
 <script src="assets/models/street_kit.js"></script>
+<script src="assets/models/cars.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script>
 (() => {
@@ -1245,12 +1246,21 @@ function buildCarType(S, cop) {
 }
 const DETAIL_MAT = new THREE.MeshLambertMaterial({ vertexColors: true }), LIT_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
 const carTypes = {};
-const carType = n => carTypes[n] || (carTypes[n] = buildCarType(CAR_SPECS[n === 'cop' ? 'sedan' : n], n === 'cop'));
+const CARGL = { root: null };
+const GLPARTS = { sedan: ['car_sedan_paint', 'car_sedan_detail', 'car_sedan_lit'], hatch: ['car_hatch_paint', 'car_hatch_detail', 'car_hatch_lit'], suv: ['car_suv_paint', 'car_suv_detail', 'car_suv_lit'], coupe: ['car_coupe_paint', 'car_coupe_detail', 'car_coupe_lit'], cop: ['car_sedan_paint', 'car_cop_detail', 'car_sedan_lit'] };
+function glSwap(T, n) {
+  if (!CARGL.root) return T;
+  const g = nm => { const o = CARGL.root.getObjectByName(nm); return o && o.geometry ? o.geometry : null; };
+  const p = GLPARTS[n], a = g(p[0]), b = g(p[1]), c = g(p[2]);
+  if (a && b && c) { T.paint = a; T.detail = b; T.lit = c; }
+  return T;
+}
+const carType = n => carTypes[n] || (carTypes[n] = glSwap(buildCarType(CAR_SPECS[n === 'cop' ? 'sedan' : n], n === 'cop'), n));
 const policeTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#f2f4f8'; x.font = 'bold 46px "Arial Narrow",Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('POLICE', 128, 34); return new THREE.CanvasTexture(c); })();
 const policeMat = new THREE.MeshBasicMaterial({ map: policeTex, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const policeGeo = new THREE.PlaneGeometry(1.1, 0.275);
 function makeCarMesh(color, cop) {
-  const T = carType(cop ? 'cop' : pick(['sedan', 'sedan', 'hatch', 'suv', 'coupe'])), g = new THREE.Group();
+  const nm = cop ? 'cop' : pick(['sedan', 'sedan', 'hatch', 'suv', 'coupe']), T = carType(nm), g = new THREE.Group();
   const body = new THREE.Mesh(T.paint, paintMat(cop ? 0xeceef4 : color)); g.add(body);
   g.add(new THREE.Mesh(T.detail, DETAIL_MAT));
   const lit = new THREE.Mesh(T.lit, LIT_MAT); g.add(lit);
@@ -1262,7 +1272,7 @@ function makeCarMesh(color, cop) {
     for (const sx of [-1, 1]) { const d = new THREE.Mesh(policeGeo, policeMat); d.position.set(sx * 0.947, 0.66, T.doorZ); d.rotation.y = sx * Math.PI / 2; g.add(d); }
   }
   scene.add(g);
-  return { g, body, roof: body, lit, lr, lb };
+  return { g, body, roof: body, lit, lr, lb, type: nm };
 }
 const cars = [];
 function newCar(kind, ctrl) {
@@ -1271,6 +1281,16 @@ function newCar(kind, ctrl) {
   cars.push(c); return c;
 }
 function removeCar(c) { scene.remove(c.m.g); const i = cars.indexOf(c); if (i >= 0) cars.splice(i, 1); }
+NHM.load('cars').then(root => {
+  if (!root) return;
+  CARGL.root = root;
+  for (const n in carTypes) glSwap(carTypes[n], n);
+  for (const c of cars) {
+    const T = carTypes[c.m.type], ch = c.m.g.children;
+    if (!T) continue;
+    ch[0].geometry = T.paint; ch[1].geometry = T.detail; ch[2].geometry = T.lit;
+  }
+});
 function placeOnLane(c, axis, road, sgn, p) {
   c.axis = axis; c.road = road; c.sgn = sgn;
   if (axis === 'x') { c.x = p; c.z = road * PITCH + sgn * LANE; c.h = sgn > 0 ? Math.PI / 2 : -Math.PI / 2; }
@@ -5415,7 +5435,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX };
+if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
