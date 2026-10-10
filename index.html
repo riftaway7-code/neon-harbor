@@ -1523,13 +1523,13 @@ function lineClear(x0, z0, x1, z1) {
 function copDrive(c, dt) {
   const t = refPos(), dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz), spd = Math.hypot(c.vx, c.vz);
   c.target = { ix: clamp(Math.round(t.x / PITCH), -R, R), iz: clamp(Math.round(t.z / PITCH), -R, R) };
-  c.cruise = 24 + level * 2.5; c.gridCd = Math.max(0, c.gridCd - dt);
+  c.cruise = 26 + level * 3.2; c.gridCd = Math.max(0, c.gridCd - dt);
   if (c.mode === 'grid') {
-    if (d < 55 && c.gridCd <= 0 && lineClear(c.x, c.z, t.x, t.z)) c.mode = 'pursue';
+    if (d < 90 && c.gridCd <= 0 && lineClear(c.x, c.z, t.x, t.z)) c.mode = 'pursue';
     else aiDrive(c, dt);
   }
   if (c.mode === 'pursue') {
-    if (d > 90 || c.gridCd > 0) { c.mode = 'grid'; snapToGrid(c); }
+    if (d > 160 || c.gridCd > 0) { c.mode = 'grid'; snapToGrid(c); }
     else {
       let want = Math.atan2(dx + (t.vx || 0) * 0.4, dz + (t.vz || 0) * 0.4);
       const probe = a => pointInSolid(c.x + Math.sin(a) * 9, c.z + Math.cos(a) * 9, 1);
@@ -5399,15 +5399,17 @@ function addCash(v) { if (SND) SND.cash(); cash += v; cashPop.textContent = '+$'
 function addHeat(v) { if (state === 'play' && deadT <= 0) heat = Math.min(150, heat + v); }
 function hurtPlayer(a) { if (deadT > 0) return; const ab = Math.min(player.armor || 0, a * 0.6); player.armor = (player.armor || 0) - ab; player.hp -= a - ab; player.hurtT = 0; shake = Math.max(shake, Math.min(0.6, a / 25)); }
 
+const WANTED = { seenT: 99 };
 function updateWanted(dt) {
-  const rp = refPos(); copsNear = 999;
-  for (const c of cars) if (c.kind === 'cop' && c.ctrl === 'cop') copsNear = Math.min(copsNear, Math.hypot(c.x - rp.x, c.z - rp.z));
-  if (heat > 0) { heat -= (copsNear > 60 ? 4 : 0.5) * dt; if (heat < 0) heat = 0; }
+  const rp = refPos(); copsNear = 999; let seen = HELI.on && !HELI.leave;
+  for (const c of cars) if (c.kind === 'cop' && c.ctrl === 'cop') { const d = Math.hypot(c.x - rp.x, c.z - rp.z); copsNear = Math.min(copsNear, d); if (d < 170 && lineClear(c.x, c.z, rp.x, rp.z)) seen = true; }
+  WANTED.seenT = seen ? 0 : WANTED.seenT + dt;
+  if (heat > 0) { const dec = WANTED.seenT > 8 && copsNear > 120 ? (WANTED.seenT > 22 ? 2.2 : 1.1) : (WANTED.seenT > 3 && copsNear > 70 ? 0.12 : 0); heat -= dec * dt; if (heat < 0) heat = 0; }
   const nl = heat <= 0 ? 0 : Math.min(5, Math.ceil(heat / 30));
   if (nl > level && level === 0) toast('Wanted', 'The police have been called', 'var(--red)');
   if (nl === 0 && level > 0) toast('Lost them', 'Wanted level cleared', 'var(--good)');
   level = nl;
-  const cops = cars.filter(c => c.kind === 'cop' && c.ctrl === 'cop'), want = [0, 1, 2, 3, 4, 6][level];
+  const cops = cars.filter(c => c.kind === 'cop' && c.ctrl === 'cop'), want = [0, 1, 2, 4, 6, 8][level];
   copT -= dt;
   if (copT <= 0) {
     copT = 1.6;
@@ -5735,7 +5737,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { get AC() { return AC; }, get master() { return master; }, SND, AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { get heat() { return heat; }, set heat(v) { heat = v; }, get level() { return level; }, get AC() { return AC; }, get master() { return master; }, SND, AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
