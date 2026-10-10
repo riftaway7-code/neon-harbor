@@ -176,8 +176,12 @@ def gauss(p, c, sg, amp):
 
 
 HEAD_C = Vector((0, 1.705, 0.0))
-HEAD_S = 1.12
-HEAD_DY = -0.03
+HEAD_S = 1.2
+HEAD_DY = -0.02
+
+
+def HY(y):
+    return HEAD_C.y + (y - HEAD_C.y) * HEAD_S + HEAD_DY
 
 
 def head_t(p):
@@ -239,7 +243,7 @@ def head_blobs(B):
         B.blob(c, r, u=u, v=v)
     for sx in (-1, 1):
         for c, r, u, v in [
-            ((0.031, 1.721, 0.083), (0.027, 0.0085, 0.011), 10, 8),
+            ((0.031, 1.722, 0.082), (0.025, 0.007, 0.008), 10, 8),
             ((0.052, 1.674, 0.056), (0.022, 0.017, 0.024), 10, 8),
             ((0.0125, 1.652, 0.106), (0.0085, 0.008, 0.01), 8, 6),
             ((0.032, 1.7155, 0.08), (0.0135, 0.0045, 0.0125), 10, 6),
@@ -520,15 +524,15 @@ def make_hair(head):
     def hairline(c):
         g = c_world(c)
         front = g.z > 0.04
-        lim = 1.726 if front and abs(g.x) < 0.075 else (1.703 if g.z > -0.02 else 1.628)
+        lim = HY(1.7505) if front and abs(g.x) < 0.075 else (HY(1.730) if g.z > -0.02 else HY(1.663))
         return g.y > lim
 
     out = {}
     out["hair_crop"] = hairshell("hair_crop", lambda c: hairline(c), lambda co: 0.012, 0)
     out["hair_buzz"] = hairshell("hair_buzz", lambda c: hairline(c), lambda co: 0.004, 0)
-    out["hair_curly"] = hairshell("hair_curly", lambda c: hairline(c) or (c_world(c).y > 1.653 and c_world(c).z < 0), lambda co: 0.026 + 0.012 * math.sin(co.x * 90) * math.sin(co.y * 85), 0)
-    out["hair_afro"] = hairshell("hair_afro", lambda c: c_world(c).y > 1.678 or (c_world(c).y > 1.633 and c_world(c).z < 0.01), lambda co: 0.052 + 0.01 * math.sin(co.x * 60) * math.sin(co.z * 70), 0)
-    out["hair_long"] = hairshell("hair_long", lambda c: hairline(c) or (c_world(c).z < 0.012 and 1.488 < c_world(c).y < 1.678 and abs(c_world(c).x) < 0.1), lambda co: 0.013, 0)
+    out["hair_curly"] = hairshell("hair_curly", lambda c: hairline(c) or (c_world(c).y > HY(1.6854) and c_world(c).z < 0), lambda co: 0.026 + 0.012 * math.sin(co.x * 90) * math.sin(co.y * 85), 0)
+    out["hair_afro"] = hairshell("hair_afro", lambda c: c_world(c).y > HY(1.7077) or (c_world(c).y > HY(1.6675) and c_world(c).z < 0.01), lambda co: 0.052 + 0.01 * math.sin(co.x * 60) * math.sin(co.z * 70), 0)
+    out["hair_long"] = hairshell("hair_long", lambda c: hairline(c) or (c_world(c).z < 0.012 and HY(1.538) < c_world(c).y < HY(1.7077) and abs(c_world(c).x) < 0.1), lambda co: 0.013, 0)
     out["hair_bun"] = hairshell("hair_bun", lambda c: hairline(c), lambda co: 0.012, 0)
     return out
 
@@ -576,7 +580,8 @@ def make_extras(arm, female=False):
             bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=1.0, matrix=Matrix.Translation((sx * 0.032, 1.705, 0.0785)) @ Matrix.Diagonal((0.0115, 0.0105, 0.0115, 1)))
 
     out["eyes"] = add_parts_object("eyes", arm, eyes)
-    paint_regions(out["eyes"], lambda v: (1.0 if math.hypot(abs(world_game(v).x) - 0.0358, world_game(v).y - 1.675) < 0.0042 else 0.5) if (world_game(v).z > 0.0879 + 0.0062 and math.hypot(abs(world_game(v).x) - 0.0358, world_game(v).y - 1.675) < 0.0086) else 0.0)
+    EC = head_t((0.032, 1.705, 0.0785))
+    paint_regions(out["eyes"], lambda v: (1.0 if math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0042 * HEAD_S else 0.5) if (world_game(v).z > EC.z + 0.0066 * HEAD_S and math.hypot(abs(world_game(v).x) - EC.x, world_game(v).y - EC.y) < 0.0086 * HEAD_S) else 0.0)
 
     def brows(bm):
         for sx in (-1, 1):
@@ -629,7 +634,7 @@ def make_extras(arm, female=False):
 
 def color_everything(parts):
     h = lambda v: world_game(v)
-    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.027, (h(v).y - 1.591) / 0.0125) < 1.0 and h(v).z > 0.07) else 0.0)
+    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.027, (h(v).y - HY(1.63)) / 0.0125) < 1.0 and h(v).z > 0.07) else 0.0)
     for sfx in ("_m", "_f"):
         paint_regions(parts["body" + sfx], lambda v: 0.0)
         paint_regions(parts["jacket" + sfx], lambda v: 0.5 if (h(v).y < 0.935 or h(v).y > 1.5 or (h(v).y < 0.905 and abs(h(v).x) > 0.15)) else 0.0)

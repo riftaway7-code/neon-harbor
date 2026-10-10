@@ -35,7 +35,7 @@ window.NH_HUMAN = function (env) {
       case 'body': return [skin, skin, skin];
       case 'head': return [skin, hMix(skin, 0x9a4f4a, 0.38), skin];
       case 'eyes': return [0xf3f0e8, o.eye || 0x2b1b12, 0x111111];
-      case 'brows': return [hShade(hair, 0.62), hShade(hair, 0.62), hair];
+      case 'brows': return [hShade(hair, 0.85), hShade(hair, 0.85), hair];
       case 'jacket': case 'long': case 'tee': return [shirt, hShade(shirt, 0.78), shirt];
       case 'pants': return [pants, hShade(pants, 0.82), pants];
       case 'shorts': return [pants, hShade(pants, 0.82), pants];

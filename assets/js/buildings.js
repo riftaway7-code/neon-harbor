@@ -227,6 +227,7 @@ window.NH_BUILDINGS = function (env) {
       const P = pair(1024, 1024);
       STYLES[k].paint(P, mulberry(900 + k.length * 31 + k.charCodeAt(0)));
       FACADE[k] = new THREE.MeshPhongMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), specularMap: toTex(P.s), specular: 0xa9bde0, shininess: 70, vertexColors: true });
+      FACADE[k].defines = { NH_GLASS: '' };
       FACADE[k].onBeforeCompile = sh => {
         sh.uniforms.uLit = WINU;
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float seed;\nvarying float vSeed;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeed = seed;');
@@ -235,7 +236,7 @@ window.NH_BUILDINGS = function (env) {
           .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nfloat wOn = step(wR1, uLit);\nvec3 wTint = mix(vec3(1.0, 0.84, 0.58), mix(vec3(0.78, 0.9, 1.0), vec3(1.0, 0.7, 0.88), step(0.88, wR2)), step(0.62, wR2));\ntotalEmissiveRadiance *= wOn * (0.5 + 0.7 * wR3) * wTint;');
       };
     }
-    for (let v = 0; v < 2; v++) { const P = paintShop(v); MATS['shop' + v] = new THREE.MeshPhongMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), specularMap: toTex(P.s), specular: 0xa9bde0, shininess: 70, vertexColors: true }); }
+    for (let v = 0; v < 2; v++) { const P = paintShop(v); MATS['shop' + v] = new THREE.MeshPhongMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), specularMap: toTex(P.s), specular: 0xa9bde0, shininess: 70, vertexColors: true }); MATS['shop' + v].defines = { NH_GLASS: '' }; }
     MATS.trim = new THREE.MeshLambertMaterial({ vertexColors: true });
     const gt = gravel(); gt.repeat.set(1, 1);
     MATS.roof = new THREE.MeshLambertMaterial({ map: gt, vertexColors: true });

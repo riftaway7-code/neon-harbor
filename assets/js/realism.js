@@ -31,12 +31,28 @@ window.NH_REAL = (function () {
       diffuseColor.rgb *= 1.0 - uNH[1] * 0.42 * baseDirt;
       float streak = nhN(vec3((wp.x + wp.z) * 1.9, wp.y * 0.11, (wp.x - wp.z) * 0.35));
       diffuseColor.rgb *= 1.0 - uNH[1] * side * smoothstep(0.55, 0.92, streak) * 0.2 * smoothstep(1.0, 12.0, wp.y);
-      nhPuddle = smoothstep(0.4, 0.6, nhN(vec3(wp.x * 0.2, 0.0, wp.z * 0.2))) * smoothstep(0.8, 0.96, nhUp) * smoothstep(1.2, 0.2, wp.y);
-      diffuseColor.rgb *= 1.0 - uNH[0] * (0.16 + 0.26 * nhPuddle) * (0.35 + 0.65 * nhUp);
+      nhPuddle = smoothstep(0.46, 0.56, nhN(vec3(wp.x * 0.33, 0.0, wp.z * 0.33))) * smoothstep(0.8, 0.96, nhUp) * smoothstep(1.2, 0.2, wp.y);
+      diffuseColor.rgb *= 1.0 - uNH[0] * (0.1 + 0.12 * nhPuddle) * (0.35 + 0.65 * nhUp);
     }
     #endif`;
 
   const SHEEN = `
+    #if defined( NH_GLOSS ) || defined( NH_GLASS )
+    {
+      vec3 V = normalize(cameraPosition - vNHW);
+      vec3 N = normalize(vNHN);
+      float fres = 0.05 + 0.95 * pow(1.0 - clamp(dot(V, N), 0.0, 1.0), 4.0);
+      vec3 R = reflect(-V, N);
+      vec3 hor = vec3(uNH[2], uNH[3], uNH[4]), zen = vec3(uNH[5], uNH[6], uNH[7]);
+      vec3 sky = R.y > 0.0 ? mix(hor, zen, clamp(R.y * 1.4, 0.0, 1.0)) : hor * 0.32;
+      #ifdef NH_GLASS
+      float gk = specularStrength * 0.65;
+      #else
+      float gk = 0.78 + uNH[0] * 0.2;
+      #endif
+      outgoingLight += sky * fres * gk;
+    }
+    #endif
     {
       float wet = uNH[0];
       if (wet > 0.01 && nhUp > 0.35) {

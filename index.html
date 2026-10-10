@@ -750,9 +750,19 @@ const lotTex = (() => {
   return tex(c, 60 / 8, 60 / 8);
 })();
 const grassTex = (() => {
-  const S = 512, c = cvs(S, S), x = c.getContext('2d'), r = mulberry(29);
-  x.fillStyle = '#2d5a3a'; x.fillRect(0, 0, S, S); blotches(x, S, S, r, 70, 46, 0.1);
-  for (let i = 0; i < 9000; i++) { const g = 70 + r() * 90; x.strokeStyle = 'rgba(' + Math.round(40 + r() * 30) + ',' + Math.round(g) + ',' + Math.round(50 + r() * 30) + ',0.45)'; const px = r() * S, py = r() * S; x.beginPath(); x.moveTo(px, py); x.lineTo(px + (r() - 0.5) * 2, py - 2 - r() * 3); x.stroke(); }
+  const S = 1024, c = cvs(S, S), x = c.getContext('2d'), r = mulberry(29);
+  x.fillStyle = '#3f6a2c'; x.fillRect(0, 0, S, S);
+  const patch = (n, rad, cols) => { for (let i = 0; i < n; i++) { const px = r() * S, py = r() * S, rr = rad * (0.4 + r()), g = x.createRadialGradient(px, py, 0, px, py, rr); const col = cols[Math.floor(r() * cols.length)]; g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { if (px + ox + rr < 0 || px + ox - rr > S || py + oy + rr < 0 || py + oy - rr > S) continue; x.save(); x.translate(ox, oy); x.fillRect(px - rr, py - rr, rr * 2, rr * 2); x.restore(); } } };
+  patch(90, 150, ['rgba(120,150,60,0.22)', 'rgba(70,110,40,0.2)', 'rgba(36,70,30,0.22)']);
+  patch(60, 70, ['rgba(150,160,70,0.18)', 'rgba(40,80,34,0.2)', 'rgba(95,125,48,0.2)']);
+  patch(24, 40, ['rgba(165,150,80,0.16)', 'rgba(30,58,26,0.2)']);
+  for (let i = 0; i < 52000; i++) {
+    const t = r(), rr = Math.round(46 + r() * 70 + t * 20), gg = Math.round(90 + r() * 90), bb = Math.round(30 + r() * 40);
+    x.strokeStyle = 'rgba(' + rr + ',' + gg + ',' + bb + ',' + (0.3 + r() * 0.4).toFixed(2) + ')'; x.lineWidth = 1 + r() * 0.8;
+    const px = r() * S, py = r() * S, len = 3 + r() * 6, lean = (r() - 0.5) * 3;
+    x.beginPath(); x.moveTo(px, py); x.lineTo(px + lean, py - len); x.stroke();
+  }
+  for (let i = 0; i < 160; i++) { const px = r() * S, py = r() * S; x.fillStyle = r() < 0.5 ? 'rgba(235,230,210,0.55)' : 'rgba(240,210,90,0.5)'; x.beginPath(); x.arc(px, py, 1 + r() * 1.2, 0, 6.3); x.fill(); }
   return tex(c, 60 / 8, 60 / 8);
 })();
 const pathTex = (() => {
@@ -1255,7 +1265,7 @@ const blobMat = new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, d
 const lambCache = {};
 const lamb = c => lambCache[c] || (lambCache[c] = new THREE.MeshLambertMaterial({ color: c }));
 const paintCache = {};
-const paintMat = c => paintCache[c] || (paintCache[c] = new THREE.MeshPhongMaterial({ color: c, specular: 0x5a606e, shininess: 70 }));
+const paintMat = c => paintCache[c] || (paintCache[c] = Object.assign(new THREE.MeshPhongMaterial({ color: c, specular: 0x5a606e, shininess: 70 }), { defines: { NH_GLOSS: '' } }));
 const CAR_COLORS = [0xc0392b, 0x2e86de, 0xf1c40f, 0x27ae60, 0xecf0f1, 0x8e44ad, 0xe67e22, 0x1abc9c, 0x95a5a6, 0xd35400];
 
 // ---- Car models: extruded side profiles with rounded edges, merged into a few shared geometries ----
