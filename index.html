@@ -217,6 +217,8 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/city_props.js"></script>
 <script src="assets/models/street_kit.js"></script>
 <script src="assets/models/cars.js"></script>
+<script src="assets/models/human.js"></script>
+<script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script>
 (() => {
@@ -717,15 +719,48 @@ const pathTex = (() => {
 })();
 const glowTex = (() => { const c = cvs(128, 128), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,190,90,0.9)'); g.addColorStop(0.4, 'rgba(255,160,60,0.3)'); g.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
 const po = (f, u) => ({ polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: u });
+const detailTex = (() => {
+  const S = 256, c = cvs(S, S), x = c.getContext('2d'), img = x.createImageData(S, S), r = mulberry(5150);
+  const g = new Float32Array(S * S);
+  for (let o = 0; o < 4; o++) {
+    const n = 8 << o, amp = 1 / (1 << o), cells = new Float32Array(n * n);
+    for (let i = 0; i < cells.length; i++) cells[i] = r();
+    for (let yy = 0; yy < S; yy++) for (let xx = 0; xx < S; xx++) {
+      const fx = xx / S * n, fy = yy / S * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const a = cells[(iy % n) * n + ix % n], b2 = cells[(iy % n) * n + (ix + 1) % n], c2 = cells[((iy + 1) % n) * n + ix % n], d2 = cells[((iy + 1) % n) * n + (ix + 1) % n];
+      g[yy * S + xx] += amp * (a + (b2 - a) * sx + (c2 - a) * sy + (a - b2 - c2 + d2) * sx * sy);
+    }
+  }
+  for (let i = 0; i < S * S; i++) { const v = Math.max(0, Math.min(255, Math.round((g[i] / 1.875 + (r() - 0.5) * 0.35) * 255))); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+})();
+function groundDetail(mat, fine, coarse, strength) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uDetail = { value: detailTex };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vDW;').replace('#include <begin_vertex>', `#include <begin_vertex>
+      vec4 dwp = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+      dwp = instanceMatrix * dwp;
+      #endif
+      dwp = modelMatrix * dwp;
+      vDW = dwp.xyz;`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vDW;\nuniform sampler2D uDetail;').replace('#include <map_fragment>', `#include <map_fragment>
+      float dn = texture2D(uDetail, vDW.xz * ${fine.toFixed(3)}).r;
+      float dc = texture2D(uDetail, vDW.xz * ${coarse.toFixed(4)} + 0.37).r;
+      diffuseColor.rgb *= 1.0 + (dn - 0.5) * ${(strength * 1.6).toFixed(3)} + (dc - 0.5) * ${(strength * 1.2).toFixed(3)};`);
+  };
+  return mat;
+}
 const flat = (w, d) => { const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); return g; };
 const _mm = new THREE.Matrix4(), _v = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _q0 = new THREE.Quaternion(), _qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
 (function buildGround() {
-  const base = new THREE.Mesh(flat(WORLD, WORLD), new THREE.MeshLambertMaterial({ map: walkTex })); scene.add(base);
+  const base = new THREE.Mesh(flat(WORLD, WORLD), groundDetail(new THREE.MeshLambertMaterial({ map: walkTex }), 1.6, 0.09, 0.3)); scene.add(base);
   const lots = blocks.filter(b => !b.park), parks = blocks.filter(b => b.park);
-  const lotM = new THREE.InstancedMesh(flat(60, 60), new THREE.MeshLambertMaterial({ map: lotTex, ...po(-1, -1) }), lots.length);
+  const lotM = new THREE.InstancedMesh(flat(60, 60), groundDetail(new THREE.MeshLambertMaterial({ map: lotTex, ...po(-1, -1) }), 1.9, 0.11, 0.3), lots.length);
   lots.forEach((b, i) => { _mm.compose(_v.set(b.cx, 0.03, b.cz), _q0, _one); lotM.setMatrixAt(i, _mm); }); scene.add(lotM);
   if (parks.length) {
-    const parkM = new THREE.InstancedMesh(flat(60, 60), new THREE.MeshLambertMaterial({ map: grassTex, ...po(-1, -1) }), parks.length);
+    const parkM = new THREE.InstancedMesh(flat(60, 60), groundDetail(new THREE.MeshLambertMaterial({ map: grassTex, ...po(-1, -1) }), 2.4, 0.13, 0.38), parks.length);
     const pathA = new THREE.InstancedMesh(flat(60, 2.4), new THREE.MeshLambertMaterial({ map: pathTex, ...po(-2, -2) }), parks.length);
     const pathB = new THREE.InstancedMesh(flat(60, 2.4), new THREE.MeshLambertMaterial({ map: pathTex, ...po(-3, -3) }), parks.length);
     parks.forEach((b, i) => {
@@ -736,8 +771,8 @@ const _mm = new THREE.Matrix4(), _v = new THREE.Vector3(), _one = new THREE.Vect
     scene.add(parkM, pathA, pathB);
   }
   const nSeg = 2 * (2 * R + 1) * (2 * R), nInt = (2 * R + 1) * (2 * R + 1);
-  const segM = new THREE.InstancedMesh(flat(SEGL, 12), new THREE.MeshLambertMaterial({ map: segTex, ...po(-4, -4) }), nSeg);
-  const intM = new THREE.InstancedMesh(flat(12, 12), new THREE.MeshLambertMaterial({ map: crossTex, ...po(-4, -4) }), nInt);
+  const segM = new THREE.InstancedMesh(flat(SEGL, 12), groundDetail(new THREE.MeshLambertMaterial({ map: segTex, ...po(-4, -4) }), 2.6, 0.08, 0.42), nSeg);
+  const intM = new THREE.InstancedMesh(flat(12, 12), groundDetail(new THREE.MeshLambertMaterial({ map: crossTex, ...po(-4, -4) }), 2.6, 0.08, 0.42), nInt);
   let n = 0, m = 0;
   for (let k = -R; k <= R; k++) {
     for (let s = -R; s < R; s++) {
@@ -1077,7 +1112,25 @@ function humanGeos(o) {
   return { body, upperArm: HBX.geo(US), foreL: forearm(-1), foreR: forearm(1), thigh: HBX.geo(TS), shin: HBX.geo(SS), shoe: HBX.geo(FS), armX, legX };
 }
 
+const HUMAN_LIST = [];
+const HUM = typeof NH_HUMAN === 'function' ? NH_HUMAN({
+  THREE, NHM, hShade, hMix, scale: HUMAN_SCALE, clock: () => clockT,
+  onRebuild: rig => { try { if (player && rig === player.rig && gunMesh) { if (gunMesh.parent) gunMesh.parent.remove(gunMesh); rig.elbowR.add(gunMesh); } } catch (e) { /* not ready yet */ } }
+}) : null;
+function newHumanRig(o, full) {
+  const g = new THREE.Group(), rig = { g, seed: Math.random() * 6 };
+  const root = new THREE.Group(); g.add(root); rig.root = root;
+  const bl = new THREE.Mesh(PG.blob, blobMat); bl.position.set(0, 0.03, 0); bl.scale.setScalar(HUMAN_SCALE); g.add(bl); rig.blob = bl;
+  scene.add(g); HUM.fill(rig, o, full);
+  return rig;
+}
+if (HUM) NHM.load('human').then(root => {
+  if (!root || !HUM.init(root)) return;
+  for (const it of HUMAN_LIST) HUM.fill(it.rig, it.o, it.full);
+  HUMAN_LIST.length = 0;
+});
 function makeHuman(o, full) {
+  if (HUM && HUM.ready) return newHumanRig(o, full);
   const G = humanGeos(o), g = new THREE.Group(), rig = { g, seed: Math.random() * 6 };
   const mesh = (geo, parent, x, y, z) => { const m = new THREE.Mesh(geo, HUMAN_MAT); m.position.set(x, y, z); parent.add(m); return m; };
   const root = new THREE.Group(); root.scale.setScalar(HUMAN_SCALE); g.add(root); rig.root = root;
@@ -1098,9 +1151,10 @@ function makeHuman(o, full) {
     rig['leg' + k] = leg; rig['knee' + k] = kn;
   }
   const bl = new THREE.Mesh(PG.blob, blobMat); bl.position.set(0, 0.03, 0); bl.scale.setScalar(HUMAN_SCALE); g.add(bl); rig.blob = bl;
-  scene.add(g); return rig;
+  scene.add(g); if (HUM) HUMAN_LIST.push({ rig, o, full }); return rig;
 }
-function poseHuman(h, ph, amp) {
+function poseHuman(h, ph, amp, spd, ex) {
+  if (h.hv) { HUM.pose(h, ph, amp, spd, ex); return; }
   const s = Math.sin(ph) * amp, c = Math.cos(ph);
   h.legL.rotation.x = s; h.legR.rotation.x = -s; h.armL.rotation.x = -s * 0.85; h.armR.rotation.x = s * 0.85;
   if (h.kneeL) { h.kneeL.rotation.x = Math.max(0, -c) * amp * 1.3; h.kneeR.rotation.x = Math.max(0, c) * amp * 1.3; }
@@ -1559,7 +1613,7 @@ function updatePeds(dt) {
       const q = perim(p.b.cx, p.b.cz, p.s, p.off); p.x = q[0]; p.z = q[1];
       const tg = TANG[q[2]], fx = tg[0] * p.dir, fz = tg[1] * p.dir;
       p.g.rotation.y += angDiff(p.g.rotation.y, Math.atan2(fx, fz)) * Math.min(1, dt * 8);
-      p.ph += dt * 5.2 * p.speed; poseHuman(p.rig, p.ph, 0.3 + (p.speed - 1.1) * 0.3); p.g.position.set(p.x, Math.abs(Math.sin(p.ph)) * 0.025, p.z);
+      p.ph += dt * 5.2 * p.speed; poseHuman(p.rig, p.ph, 0.3 + (p.speed - 1.1) * 0.3, p.speed); p.g.position.set(p.x, Math.abs(Math.sin(p.ph)) * 0.025, p.z);
       if (!far) for (const c of cars) {
         if (Math.abs(c.x - p.x) > 5 || Math.abs(c.z - p.z) > 5) continue;
         const spd = Math.hypot(c.vx, c.vz); if (spd < 3) continue;
@@ -3895,7 +3949,7 @@ function updateWalkers(dt) {
     w.s += w.dir * w.speed * dt; w.ph += dt * w.speed * 5.5;
     if (w.s < 6 || w.s > w.road.L - 6) { w.dir = -w.dir; w.s = clamp(w.s, 6, w.road.L - 6); }
     const p = walkerPoint(w, w.s);
-    w.g.position.set(p.x, 0, p.z); w.g.rotation.y = Math.atan2(p.tx, p.tz); poseHuman(w.rig, w.ph, clamp(w.speed / 1.6, 0.2, 1) * 0.7);
+    w.g.position.set(p.x, 0, p.z); w.g.rotation.y = Math.atan2(p.tx, p.tz); poseHuman(w.rig, w.ph, clamp(w.speed / 1.6, 0.2, 1) * 0.7, w.speed);
   }
 }
 
@@ -5244,7 +5298,7 @@ function updatePlayer(dt) {
   }
   clampXZ(player, 3);
   const spdF = Math.hypot(player.vx, player.vz), ph = clockT * (spdF > 7 ? 14 : 10), amp = clamp(spdF / 9, 0, 1) * (player.grounded ? 1 : 0.5);
-  poseHuman(player.rig, ph, amp);
+  poseHuman(player.rig, ph, amp, spdF, { air: !player.grounded, vy: player.vy });
   holdWeaponPose();
   player.g.position.set(player.x, player.y - (player.sink || 0), player.z); player.g.rotation.y = player.h;
 }
@@ -5435,7 +5489,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM };
+if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);

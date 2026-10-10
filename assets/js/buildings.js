@@ -12,9 +12,10 @@ window.NH_BUILDINGS = function (env) {
   const LIT = ['#ffd08a', '#ffd08a', '#ffd08a', '#ffe2a8', '#bfe3ff', '#8fb0ff', '#ffb0d8'];
 
   function pair(w, h) {
-    const d = mk(w, h), e = mk(w, h), dx = d.getContext('2d'), ex = e.getContext('2d');
+    const d = mk(w, h), e = mk(w, h), s = mk(w, h), dx = d.getContext('2d'), ex = e.getContext('2d'), sx = s.getContext('2d');
     ex.fillStyle = '#000'; ex.fillRect(0, 0, w, h);
-    return { d, e, dx, ex };
+    sx.fillStyle = '#000'; sx.fillRect(0, 0, w, h);
+    return { d, e, s, dx, ex, sx };
   }
   function brick(dx, W, H, base, r, bh, bw, mortar) {
     dx.fillStyle = mortar; dx.fillRect(0, 0, W, H);
@@ -44,6 +45,7 @@ window.NH_BUILDINGS = function (env) {
     const gx = x + f, gy = y + f, gw = w - f * 2, gh = h - f * 2, g = dx.createLinearGradient(0, gy, 0, gy + gh);
     g.addColorStop(0, '#a8c4de'); g.addColorStop(0.5, '#56769a'); g.addColorStop(1, '#27384f');
     dx.fillStyle = g; dx.fillRect(gx, gy, gw, gh);
+    P.sx.fillStyle = '#fff'; P.sx.fillRect(gx, gy, gw, gh);
     dx.fillStyle = 'rgba(255,255,255,0.16)'; dx.beginPath(); dx.moveTo(gx, gy + gh * 0.75); dx.lineTo(gx + gw, gy + gh * 0.18); dx.lineTo(gx + gw, gy + gh * 0.42); dx.lineTo(gx, gy + gh); dx.fill();
     dx.fillStyle = 'rgba(0,0,0,0.4)'; dx.fillRect(gx, gy, gw, Math.max(3, gh * 0.09)); dx.fillRect(gx, gy, Math.max(2, gw * 0.05), gh);
     if (lit) {
@@ -54,8 +56,8 @@ window.NH_BUILDINGS = function (env) {
       if (R() < 0.3) { ex.fillStyle = 'rgba(0,0,0,0.5)'; ex.fillRect(gx, gy + gh * 0.65, gw, gh * 0.35); }
     }
     dx.fillStyle = o.frame;
-    if (o.mullV) { dx.fillRect(x + w / 2 - 1.5, y, 3, h); ex.fillStyle = '#000'; ex.fillRect(x + w / 2 - 1.5, y, 3, h); }
-    if (o.rail) { dx.fillRect(x, y + h * 0.45, w, 3); ex.fillStyle = '#000'; ex.fillRect(x, y + h * 0.45, w, 3); }
+    if (o.mullV) { dx.fillRect(x + w / 2 - 1.5, y, 3, h); ex.fillStyle = '#000'; ex.fillRect(x + w / 2 - 1.5, y, 3, h); P.sx.fillStyle = '#000'; P.sx.fillRect(x + w / 2 - 1.5, y, 3, h); }
+    if (o.rail) { dx.fillRect(x, y + h * 0.45, w, 3); ex.fillStyle = '#000'; ex.fillRect(x, y + h * 0.45, w, 3); P.sx.fillStyle = '#000'; P.sx.fillRect(x, y + h * 0.45, w, 3); }
     if (o.panes) {
       ex.fillStyle = '#000';
       for (let k = 1; k < o.panes[0]; k++) { dx.fillRect(x + w * k / o.panes[0] - 1.5, y, 3, h); ex.fillRect(x + w * k / o.panes[0] - 1.5, y, 3, h); }
@@ -168,6 +170,7 @@ window.NH_BUILDINGS = function (env) {
       const gx = x + 10, gy = 56, gw = 108, gh = 110, g = dx.createLinearGradient(0, gy, 0, gy + gh);
       g.addColorStop(0, '#6f8da8'); g.addColorStop(0.6, '#2f4457'); g.addColorStop(1, '#1b2733');
       dx.fillStyle = g; dx.fillRect(gx, gy, gw, gh);
+      P.sx.fillStyle = '#fff'; P.sx.fillRect(gx, gy, gw, gh);
       dx.fillStyle = 'rgba(255,255,255,0.15)'; dx.beginPath(); dx.moveTo(gx, gy + gh); dx.lineTo(gx + gw * 0.5, gy); dx.lineTo(gx + gw * 0.75, gy); dx.lineTo(gx + gw * 0.25, gy + gh); dx.fill();
       if (r() < 0.82) {
         const warm = r() < 0.7, eg = ex.createLinearGradient(0, gy, 0, gy + gh);
@@ -202,9 +205,9 @@ window.NH_BUILDINGS = function (env) {
     for (const k in STYLES) {
       const P = pair(1024, 1024);
       STYLES[k].paint(P, mulberry(900 + k.length * 31 + k.charCodeAt(0)));
-      FACADE[k] = new THREE.MeshLambertMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), vertexColors: true });
+      FACADE[k] = new THREE.MeshPhongMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), specularMap: toTex(P.s), specular: 0xa9bde0, shininess: 70, bumpMap: toTex(P.d), bumpScale: 0.9, vertexColors: true });
     }
-    for (let v = 0; v < 2; v++) { const P = paintShop(v); MATS['shop' + v] = new THREE.MeshLambertMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), vertexColors: true }); }
+    for (let v = 0; v < 2; v++) { const P = paintShop(v); MATS['shop' + v] = new THREE.MeshPhongMaterial({ map: toTex(P.d), emissive: 0xffffff, emissiveMap: toTex(P.e), specularMap: toTex(P.s), specular: 0xa9bde0, shininess: 70, bumpMap: toTex(P.d), bumpScale: 0.9, vertexColors: true }); }
     MATS.trim = new THREE.MeshLambertMaterial({ vertexColors: true });
     const gt = gravel(); gt.repeat.set(1, 1);
     MATS.roof = new THREE.MeshLambertMaterial({ map: gt, vertexColors: true });
