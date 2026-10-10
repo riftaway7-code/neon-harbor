@@ -7,8 +7,8 @@ window.NH_HUMAN = function (env) {
 
   const BONES = [
     ['hips', null, [0, 0.93, 0]], ['upper', 'hips', [0, 0.93, 0]], ['neck', 'upper', [0, 1.46, 0]], ['head', 'neck', [0, 1.585, 0.012]],
-    ['armL', 'upper', [-0.188, 1.40, 0]], ['elbowL', 'armL', [-0.2, 1.13, 0]], ['handL', 'elbowL', [-0.212, 0.865, 0]],
-    ['armR', 'upper', [0.188, 1.40, 0]], ['elbowR', 'armR', [0.2, 1.13, 0]], ['handR', 'elbowR', [0.212, 0.865, 0]],
+    ['armL', 'upper', [-0.188, 1.40, 0]], ['elbowL', 'armL', [-0.202, 1.13, 0]], ['handL', 'elbowL', [-0.248, 0.865, 0]],
+    ['armR', 'upper', [0.188, 1.40, 0]], ['elbowR', 'armR', [0.202, 1.13, 0]], ['handR', 'elbowR', [0.248, 0.865, 0]],
     ['legL', 'hips', [-0.095, 0.93, 0]], ['kneeL', 'legL', [-0.095, 0.485, 0.01]], ['footL', 'kneeL', [-0.095, 0.10, 0]],
     ['legR', 'hips', [0.095, 0.93, 0]], ['kneeR', 'legR', [0.095, 0.485, 0.01]], ['footR', 'kneeR', [0.095, 0.10, 0]]
   ];
@@ -30,7 +30,7 @@ window.NH_HUMAN = function (env) {
   }
 
   function palette(stem, o, extra) {
-    const skin = o.skin, hair = o.hair, shirt = o.shirt, pants = o.pants, shoes = o.shoes;
+    const skin = hMix(hShade(o.skin, 0.9), 0xb5603c, 0.14), hair = o.hair, shirt = o.shirt, pants = o.pants, shoes = o.shoes;
     switch (stem) {
       case 'body': return [skin, skin, skin];
       case 'head': return [skin, hMix(skin, 0x9a4f4a, 0.38), skin];
@@ -108,8 +108,8 @@ window.NH_HUMAN = function (env) {
         const k = vo + i;
         P[k * 3] = pa.array[i * 3]; P[k * 3 + 1] = pa.array[i * 3 + 1]; P[k * 3 + 2] = pa.array[i * 3 + 2];
         N[k * 3] = na.array[i * 3]; N[k * 3 + 1] = na.array[i * 3 + 1]; N[k * 3 + 2] = na.array[i * 3 + 2];
-        const r = ca ? ca.array[i * cs] : 0, c = pal[r < 0.25 ? 0 : r < 0.75 ? 1 : 2];
-        C[k * 3] = c[0]; C[k * 3 + 1] = c[1]; C[k * 3 + 2] = c[2];
+        const r = ca ? ca.array[i * cs] : 0, c = pal[r < 0.25 ? 0 : r < 0.75 ? 1 : 2], ao = ca && cs > 2 ? 0.45 + 0.55 * ca.array[i * cs + 1] : 1;
+        C[k * 3] = c[0] * ao; C[k * 3 + 1] = c[1] * ao; C[k * 3 + 2] = c[2] * ao;
         for (let j = 0; j < 4; j++) { SI[k * 4 + j] = t.map[sa.array[i * 4 + j]] < 0 ? 0 : t.map[sa.array[i * 4 + j]]; SW[k * 4 + j] = wa.array[i * 4 + j]; }
       }
       const idx = g.index ? g.index.array : null, cnt = idx ? idx.length : n, body = it.stem === 'body';

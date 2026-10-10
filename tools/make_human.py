@@ -35,6 +35,11 @@ class Blobs:
                 self.blob(tuple(c), (r[0], max(r[1], 0.032), r[2]), u=10, v=6)
 
 
+def ARMOUT(y):
+    t = max(0.0, min(1.0, (1.2 - y) / 0.3))
+    return 0.042 * t * t * (3 - 2 * t)
+
+
 def build_points(female=False, build=1.0):
     B = Blobs()
     s = 0.93 if female else 1.0
@@ -57,21 +62,21 @@ def build_points(female=False, build=1.0):
     ]
     B.chain(torso, 0.016)
     for sx in (-1, 1):
-        B.blob((sx * 0.085 * sh, 1.35, 0.085), (0.082 * sh, 0.046, 0.034) if not female else (0.078, 0.06, 0.056), u=12, v=8)
+        B.blob((sx * 0.085 * sh, 1.35, 0.085), (0.07 * sh, 0.04, 0.02) if not female else (0.078, 0.06, 0.056), u=12, v=8)
         B.blob((sx * 0.085, 1.455, -0.012), (0.1, 0.04, 0.06), (0, 0, sx * 0.42))
         B.blob((sx * 0.1, 1.43, 0.03), (0.07, 0.014, 0.014), (0, 0, sx * -0.12))
         B.blob((sx * 0.07 * hp, 0.93, -0.07), (0.085 * hp, 0.09, 0.09))
     B.blob((0, 1.10, 0.025), (0.115 * wa, 0.1, 0.085))
-    B.chain([((0, 1.47, 0.004), (0.062, 0.01, 0.064)), ((0, 1.55, 0.012), (0.056, 0.01, 0.06)), ((0, 1.62, 0.02), (0.053, 0.01, 0.057)), ((0, 1.675, 0.025), (0.05, 0.01, 0.055))], 0.01)
+    B.chain([((0, 1.47, -0.006), (0.07, 0.01, 0.07)), ((0, 1.55, -0.004), (0.062, 0.01, 0.062)), ((0, 1.62, 0.0), (0.058, 0.01, 0.058)), ((0, 1.675, 0.004), (0.052, 0.01, 0.054))], 0.01)
     for sx in (-1, 1):
         sa = 0.188 * sh
         B.blob((sx * sa, 1.395, 0.0), (0.06 * (0.85 if female else 1), 0.072, 0.064), u=12, v=8)
-        B.chain([((sx * sa, 1.37, 0.0), (0.05, 0.01, 0.052)), ((sx * (sa + 0.004), 1.25, 0.008), (0.047, 0.01, 0.049)), ((sx * (sa + 0.008), 1.135, 0.0), (0.04, 0.01, 0.042))], 0.011, 1.1)
-        B.blob((sx * (sa + 0.002), 1.28, 0.026), (0.04, 0.06, 0.036))
-        B.blob((sx * (sa + 0.002), 1.26, -0.03), (0.035, 0.06, 0.03))
-        B.chain([((sx * (sa + 0.008), 1.135, 0.0), (0.042, 0.01, 0.043)), ((sx * (sa + 0.012), 1.04, 0.004), (0.039, 0.01, 0.04)), ((sx * (sa + 0.016), 0.95, 0.002), (0.03, 0.01, 0.03)), ((sx * (sa + 0.018), 0.87, 0.0), (0.025, 0.01, 0.026))], 0.011, 1.1)
-        B.blob((sx * (sa + 0.012), 1.07, 0.012), (0.038, 0.07, 0.034))
-        hx = sx * (sa + 0.02)
+        B.chain([((sx * sa, 1.37, 0.0), (0.05, 0.01, 0.052)), ((sx * (sa + 0.004 + ARMOUT(1.25)), 1.25, 0.008), (0.047, 0.01, 0.049)), ((sx * (sa + 0.008 + ARMOUT(1.135)), 1.135, 0.0), (0.04, 0.01, 0.042))], 0.011, 1.1)
+        B.blob((sx * (sa + 0.002 + ARMOUT(1.28)), 1.28, 0.026), (0.04, 0.06, 0.036))
+        B.blob((sx * (sa + 0.002 + ARMOUT(1.26)), 1.26, -0.03), (0.035, 0.06, 0.03))
+        B.chain([((sx * (sa + 0.008 + ARMOUT(1.135)), 1.135, 0.0), (0.042, 0.01, 0.043)), ((sx * (sa + 0.012 + ARMOUT(1.04)), 1.04, 0.004), (0.039, 0.01, 0.04)), ((sx * (sa + 0.016 + ARMOUT(0.95)), 0.95, 0.002), (0.03, 0.01, 0.03)), ((sx * (sa + 0.018 + ARMOUT(0.87)), 0.87, 0.0), (0.025, 0.01, 0.026))], 0.011, 1.1)
+        B.blob((sx * (sa + 0.012 + ARMOUT(1.07)), 1.07, 0.012), (0.038, 0.07, 0.034))
+        hx = sx * (sa + 0.02 + ARMOUT(0.8))
         B.blob((hx, 0.81, 0.004), (0.036, 0.062, 0.02), u=10, v=6)
         B.blob((hx, 0.795, 0.0), (0.04, 0.05, 0.022), u=10, v=6)
         B.chain([((hx - sx * 0.012, 0.76, 0.01), (0.011, 0.01, 0.011)), ((hx - sx * 0.012, 0.715, 0.018), (0.0095, 0.01, 0.0095))], 0.007)
@@ -172,7 +177,7 @@ def gauss(p, c, sg, amp):
 
 HEAD_C = Vector((0, 1.705, 0.0))
 HEAD_S = 1.12
-HEAD_DY = -0.018
+HEAD_DY = -0.03
 
 
 def head_t(p):
@@ -180,59 +185,83 @@ def head_t(p):
     return Vector((q.x, q.y + HEAD_DY, q.z))
 
 
+HEAD_SECTIONS = [
+    (0.000, 0.010, 0.066, 0.040),
+    (0.010, 0.030, 0.078, 0.038),
+    (0.030, 0.046, 0.083, 0.030),
+    (0.050, 0.060, 0.086, 0.026),
+    (0.072, 0.068, 0.086, 0.052),
+    (0.095, 0.074, 0.086, 0.084),
+    (0.115, 0.076, 0.089, 0.093),
+    (0.140, 0.075, 0.085, 0.098),
+    (0.165, 0.069, 0.073, 0.096),
+    (0.185, 0.057, 0.052, 0.081),
+    (0.200, 0.034, 0.028, 0.050),
+    (0.207, 0.010, 0.008, 0.015),
+]
+
+
+def head_loft(B, base=1.600, segs=36, power=2.5):
+    bm = B.bm
+    before = set(bm.faces)
+    rings = []
+    for h, w, f, bk in HEAD_SECTIONS:
+        ring = []
+        for k in range(segs):
+            a = k / segs * math.tau
+            c, s_ = math.cos(a), math.sin(a)
+            x = w * math.copysign(abs(c) ** (2 / power), c)
+            zd = f if s_ >= 0 else bk
+            z = zd * math.copysign(abs(s_) ** (2 / power), s_)
+            ring.append(bm.verts.new(V(x, base + h, z)))
+        rings.append(ring)
+    for i in range(len(rings) - 1):
+        for k in range(segs):
+            bm.faces.new((rings[i][k], rings[i][(k + 1) % segs], rings[i + 1][(k + 1) % segs], rings[i + 1][k]))
+    for ring, up in ((rings[0], False), (rings[-1], True)):
+        cv = bm.verts.new(V(0, base + (HEAD_SECTIONS[-1][0] if up else 0.0), 0))
+        for k in range(segs):
+            a, b2 = ring[k], ring[(k + 1) % segs]
+            bm.faces.new((cv, b2, a) if up else (cv, a, b2))
+    bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces if f not in before])
+
+
+def head_blobs(B):
+    head_loft(B)
+    for c, r, u, v in [
+        ((0, 1.7, 0.088), (0.011, 0.012, 0.01), 10, 8),
+        ((0, 1.682, 0.099), (0.0095, 0.02, 0.012), 10, 8),
+        ((0, 1.658, 0.113), (0.0125, 0.0125, 0.0125), 10, 8),
+        ((0, 1.637, 0.092), (0.021, 0.0065, 0.009), 10, 6),
+        ((0, 1.623, 0.09), (0.019, 0.0075, 0.009), 10, 6),
+        ((0, 1.607, 0.078), (0.021, 0.013, 0.013), 10, 8),
+    ]:
+        B.blob(c, r, u=u, v=v)
+    for sx in (-1, 1):
+        for c, r, u, v in [
+            ((0.031, 1.721, 0.083), (0.027, 0.0085, 0.011), 10, 8),
+            ((0.052, 1.674, 0.056), (0.022, 0.017, 0.024), 10, 8),
+            ((0.0125, 1.652, 0.106), (0.0085, 0.008, 0.01), 8, 6),
+            ((0.032, 1.7155, 0.08), (0.0135, 0.0045, 0.0125), 10, 6),
+            ((0.032, 1.6945, 0.08), (0.0125, 0.0035, 0.0115), 10, 6),
+            ((0.078, 1.688, -0.004), (0.0095, 0.03, 0.021), 10, 8),
+        ]:
+            B.blob((sx * c[0], c[1], c[2]), r, u=u, v=v)
+
+
 def make_head(female=False):
-    hs = 0.95 if female else 1.0
+    B = Blobs()
+    head_blobs(B)
+    ob = fuse(B, 0.0052, 6)
     bm = bmesh.new()
-    bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.0)
-    center = Vector((0, 1.705, 0.0))
-    scale = Vector((0.077 * hs, 0.106 * hs, 0.098 * hs))
-    feats = [
-        ((0, 1.685, 0.1), (0.011, 0.02, 0.02), 0.011),
-        ((0, 1.654, 0.113), (0.012, 0.011, 0.016), 0.015),
-        ((-0.016, 1.652, 0.102), (0.007, 0.007, 0.01), 0.007),
-        ((0.016, 1.652, 0.102), (0.007, 0.007, 0.01), 0.007),
-        ((-0.032, 1.72, 0.094), (0.022, 0.008, 0.016), 0.008),
-        ((0.032, 1.72, 0.094), (0.022, 0.008, 0.016), 0.008),
-        ((-0.051, 1.672, 0.072), (0.02, 0.02, 0.02), 0.011),
-        ((0.051, 1.672, 0.072), (0.02, 0.02, 0.02), 0.011),
-        ((0, 1.636, 0.097), (0.02, 0.006, 0.012), 0.009),
-        ((0, 1.619, 0.094), (0.019, 0.007, 0.012), 0.01),
-        ((0, 1.597, 0.085), (0.018, 0.016, 0.016), 0.013),
-        ((-0.06, 1.63, 0.015), (0.02, 0.025, 0.04), 0.006),
-        ((0.06, 1.63, 0.015), (0.02, 0.025, 0.04), 0.006),
-        ((0, 1.705, 0.099), (0.012, 0.012, 0.012), 0.004),
-        ((-0.032, 1.706, 0.092), (0.015, 0.011, 0.012), -0.0095),
-        ((0.032, 1.706, 0.092), (0.015, 0.011, 0.012), -0.0095),
-        ((0, 1.628, 0.099), (0.021, 0.0028, 0.01), -0.005),
-        ((-0.072, 1.7, 0.05), (0.02, 0.03, 0.03), -0.004),
-        ((0.072, 1.7, 0.05), (0.02, 0.03, 0.03), -0.004),
-        ((-0.045, 1.64, 0.07), (0.016, 0.014, 0.018), -0.005),
-        ((0.045, 1.64, 0.07), (0.016, 0.014, 0.018), -0.005),
-        ((0, 1.668, 0.108), (0.008, 0.014, 0.01), -0.003),
-    ]
+    bm.from_mesh(ob.data)
     for v in bm.verts:
-        d = Vector((v.co.x * scale.x, v.co.y * scale.y, v.co.z * scale.z))
-        p = center + d
-        n = Vector((d.x / scale.x ** 2, d.y / scale.y ** 2, d.z / scale.z ** 2)).normalized()
-        off = 0.0
-        for c, sg, a in feats:
-            off += gauss(p, c, sg, a)
-        jaw = max(0.0, (-d.y - 0.045) / 0.06)
-        d.x *= 1 - 0.08 * jaw
-        v.co = Vector((d.x, d.y, d.z)) + n * off
-    for v in bm.verts:
-        v.co = center + v.co
-    for ex in (-1, 1):
-        bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=8, radius=1.0, matrix=Matrix.Translation((ex * 0.076 * hs, 1.69, -0.004)) @ Matrix.Diagonal((0.0085, 0.03, 0.021, 1)))
-        bmesh.ops.create_uvsphere(bm, u_segments=8, v_segments=6, radius=1.0, matrix=Matrix.Translation((ex * 0.0785 * hs, 1.688, -0.002)) @ Matrix.Diagonal((0.005, 0.02, 0.012, 1)))
-    for v in bm.verts:
-        v.co = V(*head_t(v.co))
-    me = bpy.data.meshes.new("head")
-    bm.to_mesh(me)
+        g = Vector((v.co.x, v.co.z, -v.co.y))
+        v.co = V(*head_t(g))
+    bm.to_mesh(ob.data)
     bm.free()
-    ob = bpy.data.objects.new("head", me)
-    bpy.context.scene.collection.objects.link(ob)
-    for p in me.polygons:
+    ob.name = "head"
+    for p in ob.data.polygons:
         p.use_smooth = True
     return ob
 
@@ -245,9 +274,9 @@ BONES = [
 ]
 for _s, _k in ((-1, "L"), (1, "R")):
     BONES += [
-        ("arm" + _k, "upper", (_s * 0.188, 1.40, 0), (_s * 0.2, 1.13, 0)),
-        ("elbow" + _k, "arm" + _k, (_s * 0.2, 1.13, 0), (_s * 0.212, 0.865, 0)),
-        ("hand" + _k, "elbow" + _k, (_s * 0.212, 0.865, 0), (_s * 0.216, 0.72, 0.012)),
+        ("arm" + _k, "upper", (_s * 0.188, 1.40, 0), (_s * 0.202, 1.13, 0)),
+        ("elbow" + _k, "arm" + _k, (_s * 0.202, 1.13, 0), (_s * 0.248, 0.865, 0)),
+        ("hand" + _k, "elbow" + _k, (_s * 0.248, 0.865, 0), (_s * 0.252, 0.72, 0.012)),
         ("leg" + _k, "hips", (_s * 0.095, 0.93, 0), (_s * 0.095, 0.485, 0.01)),
         ("knee" + _k, "leg" + _k, (_s * 0.095, 0.485, 0.01), (_s * 0.095, 0.10, 0)),
         ("foot" + _k, "knee" + _k, (_s * 0.095, 0.10, 0), (_s * 0.095, 0.03, 0.2)),
@@ -343,13 +372,26 @@ def clone_with_groups(src, name):
     return ob
 
 
-def shell(src, name, keep, offset_fn, thick=0.005, trim_loose=True):
+def relax_boundary(bm, iters=8, factor=0.5):
+    for _ in range(iters):
+        moves = {}
+        for v in bm.verts:
+            nb = [e.other_vert(v) for e in v.link_edges if e.is_boundary]
+            if len(nb) == 2 and v.is_boundary:
+                avg = (nb[0].co + nb[1].co) / 2
+                moves[v] = v.co.lerp(avg, factor)
+        for v, c in moves.items():
+            v.co = c
+
+
+def shell(src, name, keep, offset_fn, thick=0.005, trim_loose=True, cuts=()):
     ob = clone_with_groups(src, name)
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     dl = bm.verts.layers.deform.verify()
     dom = dominant(bm, ob, dl)
     bm.faces.ensure_lookup_table()
+    domv = {v: dom[v.index] for v in bm.verts}
     kill = []
     for f in bm.faces:
         bones = [dom[v.index] for v in f.verts]
@@ -363,6 +405,16 @@ def shell(src, name, keep, offset_fn, thick=0.005, trim_loose=True):
     for v in bm.verts:
         off = offset_fn(v.co, v.normal)
         v.co = v.co + v.normal * off
+    for z, side, inc, exc in cuts:
+        fs = [f for f in bm.faces if f.is_valid and (inc is None or all(domv.get(v) in inc for v in f.verts)) and not (exc and all(domv.get(v) in exc for v in f.verts))]
+        geom = list(fs)
+        for f in fs:
+            geom.extend(f.edges)
+            geom.extend(f.verts)
+        geom = list({id(g): g for g in geom}.values())
+        res = bmesh.ops.bisect_plane(bm, geom=geom, dist=0.0001, plane_co=Vector((0, 0, z)), plane_no=Vector((0, 0, 1)), clear_inner=(side == "below"), clear_outer=(side == "above"))
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    relax_boundary(bm)
     bm.to_mesh(ob.data)
     bm.free()
     for p in ob.data.polygons:
@@ -397,36 +449,38 @@ def make_clothes(body):
     BAD_TOP = {"head", "neck"}
     LEGB = {"legL", "legR", "kneeL", "kneeR", "footL", "footR"}
     ARMB = {"armL", "armR", "elbowL", "elbowR", "handL", "handR"}
+    HANDB = {"handL", "handR"}
+    SLEEVE = {"armL", "armR", "elbowL", "elbowR"}
 
-    def jk(b, c):
-        if any(x in BAD_TOP for x in b):
-            return False
-        if c.z > 1.5 or c.z < 0.865:
-            return False
-        if abs(c.x) < 0.172:
-            return c.z > 0.9
-        return not any(x in {"handL", "handR"} or x in LEGB for x in b)
+    def neckhole(c):
+        return c.z > 1.415 and math.hypot(c.x, c.y) < 0.078
 
-    def tee(b, c):
-        if any(x in BAD_TOP for x in b):
+    def top(b, c, low):
+        if any(x == 'head' or x in HANDB for x in b):
             return False
-        if c.z > 1.5 or c.z < 0.92:
+        if c.z > 1.56 or c.z < low or neckhole(c):
             return False
-        if abs(c.x) < 0.172:
-            return True
-        return c.z > 1.14 and not any(x in {"handL", "handR"} or x in LEGB for x in b)
+        return True
 
-    def pants(b, c, top=0.985, bot=0.1):
+    def tee_keep(b, c):
+        if not top(b, c, 0.86):
+            return False
+        if any(x in SLEEVE for x in b) and c.z < 1.1:
+            return False
+        return True
+
+    def pants(b, c, top=0.995, bot=0.09):
         if any(x in BAD_TOP or x in ARMB for x in b):
             return False
         return bot < c.z < top
 
-    out["jacket"] = shell(body, "jacket", jk, lambda co, n: 0.017 + 0.012 * (1 - smoothstep(0.9, 1.05, co.z)) + 0.016 * smoothstep(1.44, 1.52, co.z), 0)
-    out["long"] = shell(body, "long", jk, lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0)
-    out["tee"] = shell(body, "tee", tee, lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0)
-    out["pants"] = shell(body, "pants", lambda b, c: pants(b, c), lambda co, n: 0.011 + 0.008 * smoothstep(0.5, 0.95, co.z) - 0.004 * smoothstep(0.1, 0.25, 0.25 - co.z), 0)
-    out["shorts"] = shell(body, "shorts", lambda b, c: pants(b, c, 0.985, 0.58), lambda co, n: 0.012 + 0.008 * smoothstep(0.5, 0.95, co.z), 0)
-    out["shoes"] = shell(body, "shoes", lambda b, c: c.z < 0.125 and not any(x in ARMB or x in BAD_TOP for x in b), lambda co, n: 0.012 + 0.012 * smoothstep(0.0, 0.05, 0.05 - co.z), 0)
+    TORSOB = {"hips", "upper"}
+    out["jacket"] = shell(body, "jacket", lambda b, c: top(b, c, 0.86), lambda co, n: 0.017 + 0.012 * (1 - smoothstep(0.9, 1.05, co.z)) + 0.016 * smoothstep(1.44, 1.52, co.z), 0, cuts=[(1.5, "above", None, None), (0.895, "below", None, SLEEVE), (0.872, "below", SLEEVE, None)])
+    out["long"] = shell(body, "long", lambda b, c: top(b, c, 0.86), lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0, cuts=[(1.5, "above", None, None), (0.93, "below", None, SLEEVE), (0.872, "below", SLEEVE, None)])
+    out["tee"] = shell(body, "tee", tee_keep, lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0, cuts=[(1.5, "above", None, None), (0.93, "below", None, SLEEVE), (1.165, "below", SLEEVE, None)])
+    out["pants"] = shell(body, "pants", lambda b, c: pants(b, c), lambda co, n: 0.011 + 0.008 * smoothstep(0.5, 0.95, co.z) - 0.004 * smoothstep(0.1, 0.25, 0.25 - co.z), 0, cuts=[(0.985, "above", None, None), (0.1, "below", None, None)])
+    out["shorts"] = shell(body, "shorts", lambda b, c: pants(b, c, 0.995, 0.55), lambda co, n: 0.012 + 0.008 * smoothstep(0.5, 0.95, co.z), 0, cuts=[(0.985, "above", None, None), (0.58, "below", None, None)])
+    out["shoes"] = shell(body, "shoes", lambda b, c: c.z < 0.14 and not any(x in ARMB or x in BAD_TOP for x in b), lambda co, n: 0.012 + 0.012 * smoothstep(0.0, 0.05, 0.05 - co.z), 0, cuts=[(0.125, "above", None, None)])
     return out
 
 
@@ -466,15 +520,15 @@ def make_hair(head):
     def hairline(c):
         g = c_world(c)
         front = g.z > 0.04
-        lim = 1.738 if front and abs(g.x) < 0.075 else (1.715 if g.z > -0.02 else 1.64)
+        lim = 1.726 if front and abs(g.x) < 0.075 else (1.703 if g.z > -0.02 else 1.628)
         return g.y > lim
 
     out = {}
     out["hair_crop"] = hairshell("hair_crop", lambda c: hairline(c), lambda co: 0.012, 0)
     out["hair_buzz"] = hairshell("hair_buzz", lambda c: hairline(c), lambda co: 0.004, 0)
-    out["hair_curly"] = hairshell("hair_curly", lambda c: hairline(c) or (c_world(c).y > 1.665 and c_world(c).z < 0), lambda co: 0.026 + 0.012 * math.sin(co.x * 90) * math.sin(co.y * 85), 0)
-    out["hair_afro"] = hairshell("hair_afro", lambda c: c_world(c).y > 1.69 or (c_world(c).y > 1.645 and c_world(c).z < 0.01), lambda co: 0.052 + 0.01 * math.sin(co.x * 60) * math.sin(co.z * 70), 0)
-    out["hair_long"] = hairshell("hair_long", lambda c: hairline(c) or (c_world(c).z < 0.012 and 1.50 < c_world(c).y < 1.69 and abs(c_world(c).x) < 0.1), lambda co: 0.013, 0)
+    out["hair_curly"] = hairshell("hair_curly", lambda c: hairline(c) or (c_world(c).y > 1.653 and c_world(c).z < 0), lambda co: 0.026 + 0.012 * math.sin(co.x * 90) * math.sin(co.y * 85), 0)
+    out["hair_afro"] = hairshell("hair_afro", lambda c: c_world(c).y > 1.678 or (c_world(c).y > 1.633 and c_world(c).z < 0.01), lambda co: 0.052 + 0.01 * math.sin(co.x * 60) * math.sin(co.z * 70), 0)
+    out["hair_long"] = hairshell("hair_long", lambda c: hairline(c) or (c_world(c).z < 0.012 and 1.488 < c_world(c).y < 1.678 and abs(c_world(c).x) < 0.1), lambda co: 0.013, 0)
     out["hair_bun"] = hairshell("hair_bun", lambda c: hairline(c), lambda co: 0.012, 0)
     return out
 
@@ -519,10 +573,10 @@ def make_extras(arm, female=False):
 
     def eyes(bm):
         for sx in (-1, 1):
-            bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=1.0, matrix=Matrix.Translation((sx * 0.032, 1.705, 0.083)) @ Matrix.Diagonal((0.0118, 0.0105, 0.0118, 1)))
+            bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=1.0, matrix=Matrix.Translation((sx * 0.032, 1.705, 0.0785)) @ Matrix.Diagonal((0.0115, 0.0105, 0.0115, 1)))
 
     out["eyes"] = add_parts_object("eyes", arm, eyes)
-    paint_regions(out["eyes"], lambda v: 1.0 if (world_game(v).z > 0.083 + 0.0075 and math.hypot(abs(world_game(v).x) - 0.032, world_game(v).y - 1.705) < 0.0072) else 0.0)
+    paint_regions(out["eyes"], lambda v: (1.0 if math.hypot(abs(world_game(v).x) - 0.0358, world_game(v).y - 1.675) < 0.0042 else 0.5) if (world_game(v).z > 0.0879 + 0.0062 and math.hypot(abs(world_game(v).x) - 0.0358, world_game(v).y - 1.675) < 0.0086) else 0.0)
 
     def brows(bm):
         for sx in (-1, 1):
@@ -575,7 +629,7 @@ def make_extras(arm, female=False):
 
 def color_everything(parts):
     h = lambda v: world_game(v)
-    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.027, (h(v).y - 1.627 + 0.018 * 0) / 0.015) < 1.0 and h(v).z > 0.08) else 0.0)
+    paint_regions(parts["head"], lambda v: 0.5 if (math.hypot(h(v).x / 0.027, (h(v).y - 1.591) / 0.0125) < 1.0 and h(v).z > 0.07) else 0.0)
     for sfx in ("_m", "_f"):
         paint_regions(parts["body" + sfx], lambda v: 0.0)
         paint_regions(parts["jacket" + sfx], lambda v: 0.5 if (h(v).y < 0.935 or h(v).y > 1.5 or (h(v).y < 0.905 and abs(h(v).x) > 0.15)) else 0.0)
@@ -589,13 +643,68 @@ def color_everything(parts):
         paint_regions(parts[k], lambda v: 0.0)
 
 
+def bake_ao(parts, samples=18, reach=0.14):
+    from mathutils.bvhtree import BVHTree
+    rnd = random.Random(7)
+    dirs = []
+    for _ in range(samples):
+        u, v = rnd.random(), rnd.random()
+        r = math.sqrt(u)
+        a = 2 * math.pi * v
+        z = 0.3 + 0.7 * math.sqrt(max(0.0, 1 - u))
+        q = math.sqrt(max(0.0, 1 - z * z))
+        dirs.append(Vector((q * math.cos(a), q * math.sin(a), z)))
+    occ = ("body", "head", "jacket", "long", "tee", "pants", "shorts", "shoes", "skirt")
+    groups = {"m": [k for k in parts if k.split("_")[0] in occ and not k.endswith("_f")], "f": [k for k in parts if k.split("_")[0] in occ and (k.endswith("_f") or k == "head")]}
+    trees = {}
+    for g, keys in groups.items():
+        verts, polys = [], []
+        for k in keys:
+            me = parts[k].data
+            off = len(verts)
+            verts.extend([v.co.copy() for v in me.vertices])
+            polys.extend([tuple(off + i for i in p.vertices) for p in me.polygons])
+        trees[g] = BVHTree.FromPolygons(verts, polys)
+    for k, ob in parts.items():
+        tree = trees["f"] if k.endswith("_f") else trees["m"]
+        me = ob.data
+        layer = me.color_attributes.get("Col")
+        if layer is None:
+            layer = me.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
+            for d in layer.data:
+                d.color = (0.0, 1.0, 0.0, 1.0)
+        me.color_attributes.active_color = layer
+        ao = []
+        nbm = bmesh.new()
+        nbm.from_mesh(me)
+        nbm.normal_update()
+        nbm.verts.ensure_lookup_table()
+        for v in nbm.verts:
+            n = v.normal.normalized() if v.normal.length > 0 else Vector((0, 0, 1))
+            t = n.cross(Vector((0, 0, 1)) if abs(n.z) < 0.9 else Vector((1, 0, 0))).normalized()
+            b = n.cross(t)
+            hit = 0
+            o = v.co + n * 0.012
+            for d in dirs:
+                w = t * d.x + b * d.y + n * d.z
+                r = tree.ray_cast(o, w, reach)
+                if r[0] is not None:
+                    hit += 1
+            ao.append(1.0 - hit / samples)
+        nbm.free()
+        for poly in me.polygons:
+            for li in poly.loop_indices:
+                c = layer.data[li].color
+                layer.data[li].color = (c[0], ao[me.loops[li].vertex_index], 0.0, 1.0)
+
+
 def make_all_old(voxel=0.0085, export=True):
     clear()
     body = make_body(False, voxel)
     bpy.ops.object.select_all(action="DESELECT")
     body.select_set(True)
     bpy.context.view_layer.objects.active = body
-    bpy.ops.object.quadriflow_remesh(target_faces=3600, use_mesh_symmetry=False, use_preserve_sharp=False, use_preserve_boundary=False, smooth_normals=True, mode="FACES", seed=1)
+    bpy.ops.object.quadriflow_remesh(target_faces=8000, use_mesh_symmetry=False, use_preserve_sharp=False, use_preserve_boundary=False, smooth_normals=True, mode="FACES", seed=1)
     for p in body.data.polygons:
         p.use_smooth = True
     head = make_head(False)
@@ -656,7 +765,7 @@ def build_set(female, voxel=0.0085):
     bpy.ops.object.select_all(action="DESELECT")
     body.select_set(True)
     bpy.context.view_layer.objects.active = body
-    bpy.ops.object.quadriflow_remesh(target_faces=3600, use_mesh_symmetry=False, use_preserve_sharp=False, use_preserve_boundary=False, smooth_normals=True, mode="FACES", seed=1)
+    bpy.ops.object.quadriflow_remesh(target_faces=8000, use_mesh_symmetry=False, use_preserve_sharp=False, use_preserve_boundary=False, smooth_normals=True, mode="FACES", seed=1)
     for p in body.data.polygons:
         p.use_smooth = True
     return body
@@ -685,6 +794,8 @@ def make_all(voxel=0.0085):
     out["head"] = head
     out.update(make_hair(head))
     out.update(make_extras(arm))
+    color_everything(out)
+    bake_ao(out)
     return out, arm
 
 

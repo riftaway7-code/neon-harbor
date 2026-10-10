@@ -221,6 +221,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/plants.js"></script>
 <script src="assets/models/farm_kit.js"></script>
 <script src="assets/models/human.js"></script>
+<script src="assets/models/weapons.js"></script>
 <script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script src="assets/js/houses.js"></script>
@@ -1921,7 +1922,20 @@ const wep = { cur: null, owned: {}, mag: {}, res: {}, cd: 0, reloading: 0, aimT:
 let menuOpen = false, copFireT = 1.5, lastWepHud = '', gunMesh = null;
 
 // ---- held weapon model (attached to the player's right hand) ----
+let WEAP = null;
+const GUNMAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+NHM.load('weapons').then(root => { WEAP = root; if (wep.cur) equip(wep.cur); });
 function gunModel(type) {
+  if (WEAP) {
+    const node = WEAP.getObjectByName(type);
+    if (node) {
+      const g = new THREE.Group(), c = node.clone(true);
+      c.traverse(o => { if (o.isMesh) o.material = GUNMAT; });
+      c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.scale.set(1, 1, 1);
+      g.add(c); g.rotation.x = Math.PI / 2; g.position.set(0, -0.3, 0);
+      return g;
+    }
+  }
   const g = new THREE.Group(), dark = lamb(0x1d1f24), steel = lamb(0x2b2e35), wood = lamb(0x6b4a2e);
   const add = (w, h, d, x, y, z, m, rx) => { const b = new THREE.Mesh(UBOX, m); b.scale.set(w, h, d); b.position.set(x, y, z); if (rx) b.rotation.x = rx; g.add(b); };
   if (type === 'pistol') { add(0.04, 0.05, 0.22, 0, 0.045, 0.08, steel); add(0.04, 0.1, 0.05, 0, -0.03, -0.01, dark, 0.2); }
