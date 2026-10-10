@@ -214,6 +214,8 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SAOPass.js"></script>
 <script src="assets/models/trees_broadleaf.js"></script>
 <script src="assets/models/grass.js"></script>
+<script src="assets/models/city_props.js"></script>
+<script src="assets/js/buildings.js"></script>
 <script>
 (() => {
 'use strict';
@@ -249,10 +251,10 @@ const NHM = (() => {
     };
   };
   const convert = (m, geo) => {
-    const leaf = m.name === 'leaf', grass = m.name === 'grass', map = m.map;
+    const leaf = m.name === 'leaf', grass = m.name === 'grass', prop = m.name === 'prop', map = m.map;
     if (map) map.encoding = THREE.LinearEncoding;
     const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xc2dcae : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
-    if (grass && geo && geo.attributes.color && !geo.userData.lifted) {
+    if ((grass || prop) && geo && geo.attributes.color && !geo.userData.lifted) {
       const c = geo.attributes.color, arr = c.array, sc = arr instanceof Uint8Array ? 255 : arr instanceof Uint16Array ? 65535 : 1, step = c.itemSize;
       for (let i = 0; i < c.count; i++) for (let k = 0; k < 3; k++) {
         const o = i * step + k, v = Math.min(1, Math.pow(arr[o] / sc, 0.4545) * 1.2);
@@ -264,6 +266,24 @@ const NHM = (() => {
     else if (leaf) sway(mat, 9.0, 0.22);
     return mat;
   };
+  function place(parent, root, buckets) {
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), made = [];
+    for (const name in buckets) {
+      const items = buckets[name];
+      if (!items.length) continue;
+      for (const part of parts(root, name)) {
+        const im = new THREE.InstancedMesh(part.geometry, part.material, items.length);
+        im.frustumCulled = false;
+        items.forEach((it, i) => {
+          q.setFromAxisAngle(up, it.r || 0); p.set(it.x, it.y || 0, it.z); s.set(it.sx, it.sy, it.sz);
+          m.compose(p, q, s).multiply(part.matrix); im.setMatrixAt(i, m);
+        });
+        im.instanceMatrix.needsUpdate = true;
+        parent.add(im); made.push(im);
+      }
+    }
+    return made;
+  }
   function load(key) {
     if (cache[key]) return cache[key];
     const src = window.NH_MODELS && window.NH_MODELS[key];
@@ -299,7 +319,7 @@ const NHM = (() => {
     });
     return made;
   }
-  return { load, instance, WIND };
+  return { load, instance, place, WIND };
 })();
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -396,7 +416,9 @@ const rng = mulberry(20261002);
 const antennaGeo = new THREE.CylinderGeometry(0.12, 0.18, 9, 6);
 const redTip = new THREE.MeshBasicMaterial({ color: 0xff3040 });
 const tipGeo = new THREE.SphereGeometry(0.35, 8, 6);
+const CB = typeof NH_BUILDINGS === 'function' ? NH_BUILDINGS({ THREE, scene, solids, wallMats, NHM, mulberry, renderer }) : null;
 function addBuilding(x, z, w, d, h) {
+  if (CB) { CB.add(x, z, w, d, h); return; }
   const wall = wallMats[Math.floor(rng() * 3)][Math.floor(rng() * TINTS.length)];
   const m = new THREE.Mesh(buildingGeo(w, h, d), [wall, wall, roofMat, roofMat, wall, wall]);
   m.position.set(x, h / 2, z); scene.add(m);
@@ -450,6 +472,7 @@ for (let bi = -R; bi < R; bi++) for (let bj = -R; bj < R; bj++) {
     addBuilding(cx + ox, cz + oz, w, d, h);
   }
 }
+if (CB) CB.finish();
 
 // Harbor Light: striped lighthouse in the centre park
 (function lighthouse() {
