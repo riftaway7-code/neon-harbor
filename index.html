@@ -215,6 +215,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/trees_broadleaf.js"></script>
 <script src="assets/models/grass.js"></script>
 <script src="assets/models/city_props.js"></script>
+<script src="assets/models/street_kit.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script>
 (() => {
@@ -284,6 +285,28 @@ const NHM = (() => {
     }
     return made;
   }
+  function lamps(parent, items, glowMat, fallback) {
+    return load('street_kit').then(root => {
+      if (!root) {
+        if (fallback) {
+          const bx = new THREE.BoxGeometry(1, 1, 1), poles = new THREE.InstancedMesh(bx, new THREE.MeshLambertMaterial({ color: 0x2a2d38 }), Math.max(1, items.length)), heads = new THREE.InstancedMesh(bx, glowMat, Math.max(1, items.length));
+          const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+          items.forEach((it, i) => { s.set(0.25, 7, 0.25); p.set(it.x, 3.5, it.z); m.compose(p, q, s); poles.setMatrixAt(i, m); s.set(1.1, 0.22, 1.1); p.set(it.x, 7.1, it.z); m.compose(p, q, s); heads.setMatrixAt(i, m); });
+          poles.count = heads.count = items.length; poles.frustumCulled = heads.frustumCulled = false; parent.add(poles, heads);
+        }
+        return false;
+      }
+      place(parent, root, { street_lamp: items });
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+      for (const part of parts(root, 'street_lamp_glow')) {
+        const im = new THREE.InstancedMesh(part.geometry, glowMat, items.length);
+        im.frustumCulled = false;
+        items.forEach((it, i) => { q.setFromAxisAngle(up, it.r || 0); p.set(it.x, 0, it.z); s.set(it.sx, it.sy, it.sz); m.compose(p, q, s).multiply(part.matrix); im.setMatrixAt(i, m); });
+        im.instanceMatrix.needsUpdate = true; parent.add(im);
+      }
+      return true;
+    });
+  }
   function load(key) {
     if (cache[key]) return cache[key];
     const src = window.NH_MODELS && window.NH_MODELS[key];
@@ -319,7 +342,7 @@ const NHM = (() => {
     });
     return made;
   }
-  return { load, instance, place, WIND };
+  return { load, instance, place, lamps, WIND };
 })();
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -534,6 +557,12 @@ for (let i = -R; i <= R; i++) for (let t = -EXT + 13; t <= EXT - 12; t += 26) {
     s.set(1.1, 0.22, 1.1); p.set(l[0], 7.1, l[1]); m.compose(p, q, s); heads.setMatrixAt(i, m);
   });
   scene.userData.lampMat = heads.material; scene.add(poles, heads);
+  const items = lampPos.map(l => {
+    const dx = l[0] - Math.round(l[0] / PITCH) * PITCH, dz = l[1] - Math.round(l[1] / PITCH) * PITCH, tx = Math.abs(dx) > 5 && Math.abs(dx) < 10 ? -Math.sign(dx) : 0, tz = tx ? 0 : -Math.sign(dz);
+    return { x: l[0], z: l[1], r: Math.atan2(tx, tz), sx: 1, sy: 1, sz: 1 };
+  });
+  const glowMat = new THREE.MeshBasicMaterial({ color: heads.material.color.getHex() });
+  NHM.lamps(scene, items, glowMat, false).then(ok => { if (ok) { poles.visible = false; heads.visible = false; scene.userData.lampMat = glowMat; } });
 })();
 
 // ---- Perimeter fence: a low wooden picket fence with posts and two rails ----
@@ -2564,6 +2593,23 @@ const LAMP_OFF = [new THREE.Color(0x2c0b0b), new THREE.Color(0x2c2409), new THRE
     sigMeta.push({ axis: a.axis, ix, iz, last: '' }); n++;
   }
   scene.add(sigPole, sigHead, ...sigLamps);
+  NHM.load('street_kit').then(root => {
+    if (!root) return;
+    const items = [], LY = [5.7, 5.3, 4.9], lensGeo = new THREE.CylinderGeometry(0.125, 0.125, 0.05, 18).rotateZ(-Math.PI / 2);
+    const mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), pp = new THREE.Vector3(), ss = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+    let k2 = 0;
+    for (let ix = -R; ix <= R; ix++) for (let iz = -R; iz <= R; iz++) for (const a of APPROACHES) {
+      const x = ix * PITCH + a.ox, z = iz * PITCH + a.oz, lx = a.axis === 'x' ? 0 : -Math.sign(a.ox), lz = a.axis === 'x' ? -Math.sign(a.oz) : 0;
+      const yaw = Math.atan2(lx, lz), co = Math.cos(yaw), si = Math.sin(yaw);
+      items.push({ x, z, r: yaw, sx: 1, sy: 1, sz: 1 });
+      qq.setFromAxisAngle(up, yaw);
+      for (let k = 0; k < 3; k++) { pp.set(x + 0.25 * co + 5.0 * si, LY[k], z - 0.25 * si + 5.0 * co); mm.compose(pp, qq, ss); sigLamps[k].setMatrixAt(k2, mm); }
+      k2++;
+    }
+    for (const l of sigLamps) { l.geometry = lensGeo; l.instanceMatrix.needsUpdate = true; }
+    sigPole.visible = false; sigHead.visible = false;
+    NHM.place(scene, root, { traffic_signal: items });
+  });
 })();
 let sigT = 0;
 function updateSignals(dt) {
@@ -2586,6 +2632,7 @@ function updateSignals(dt) {
   const box = (w, h, d, x, y, z, c) => parts.push({ g: UBOX, m: T(x, y, z, 0, 0, 0, w, h, d), c });
   const cyl = (rad, h, x, y, z, c) => parts.push({ g: UCYL, m: T(x, y, z, 0, 0, 0, rad, h, rad), c });
   const solid = (x, z, hx, hz, h) => solids.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz, h });
+  const FURN = {}, F = (name, x, z, yaw) => { (FURN[name] || (FURN[name] = [])).push({ x, z, r: yaw, sx: 1, sy: 1, sz: 1 }); };
   for (const b of blocks) {
     const count = b.park ? 5 : 3 + Math.floor(r() * 4);
     for (let i = 0; i < count; i++) {
@@ -2593,23 +2640,33 @@ function updateSignals(dt) {
       const x = e === 0 ? b.cx + u : e === 2 ? b.cx + u : e === 1 ? b.cx + H : b.cx - H;
       const z = e === 1 ? b.cz + u : e === 3 ? b.cz + u : e === 0 ? b.cz - H : b.cz + H;
       if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 7) continue;
-      const alongX = e % 2 === 0, pick3 = r();
-      if (pick3 < 0.3) {                                    // fire hydrant
-        cyl(0.17, 0.7, x, 0.35, z, 0xc23a32); cyl(0.22, 0.1, x, 0.72, z, 0xa82e28); box(0.4, 0.1, 0.1, x, 0.5, z, 0xc23a32); solid(x, z, 0.25, 0.25, 0.8);
-      } else if (pick3 < 0.55) {                            // litter bin
-        cyl(0.3, 0.9, x, 0.45, z, 0x2f5a3c); cyl(0.33, 0.08, x, 0.94, z, 0x1d1f24); solid(x, z, 0.35, 0.35, 0.95);
-      } else if (pick3 < 0.8) {                             // bench, back towards the buildings
+      const alongX = e % 2 === 0, pick3 = r(), yawOut = e === 0 ? Math.PI : e === 1 ? Math.PI / 2 : e === 2 ? 0 : -Math.PI / 2;
+      if (pick3 < 0.2) {
+        cyl(0.17, 0.7, x, 0.35, z, 0xc23a32); cyl(0.22, 0.1, x, 0.72, z, 0xa82e28); box(0.4, 0.1, 0.1, x, 0.5, z, 0xc23a32); solid(x, z, 0.25, 0.25, 0.8); F('hydrant', x, z, yawOut);
+      } else if (pick3 < 0.4) {
+        cyl(0.3, 0.9, x, 0.45, z, 0x2f5a3c); cyl(0.33, 0.08, x, 0.94, z, 0x1d1f24); solid(x, z, 0.35, 0.35, 0.95); F('trash_can', x, z, yawOut);
+      } else if (pick3 < 0.58) {
         const w = alongX ? 1.7 : 0.5, d = alongX ? 0.5 : 1.7, inward = e === 0 ? [0, 1] : e === 1 ? [-1, 0] : e === 2 ? [0, -1] : [1, 0];
         box(w, 0.08, d, x, 0.5, z, 0x7a5a38);
         box(alongX ? 1.7 : 0.08, 0.45, alongX ? 0.08 : 1.7, x + inward[0] * 0.22, 0.78, z + inward[1] * 0.22, 0x7a5a38);
         for (const s of [-0.7, 0.7]) box(alongX ? 0.08 : 0.4, 0.5, alongX ? 0.4 : 0.08, x + (alongX ? s : 0), 0.25, z + (alongX ? 0 : s), 0x2b2e35);
-        solid(x, z, w / 2, d / 2, 0.9);
-      } else {                                              // mailbox
-        box(0.5, 0.9, 0.4, x, 0.75, z, 0x2e5fa8); box(0.52, 0.12, 0.42, x, 1.24, z, 0x234a85); box(0.12, 0.8, 0.12, x, 0.4, z, 0x2b2e35); solid(x, z, 0.3, 0.3, 1.3);
+        solid(x, z, w / 2, d / 2, 0.9); F('bench', x, z, yawOut);
+      } else if (pick3 < 0.68) {
+        box(0.5, 0.9, 0.4, x, 0.75, z, 0x2e5fa8); box(0.52, 0.12, 0.42, x, 1.24, z, 0x234a85); box(0.12, 0.8, 0.12, x, 0.4, z, 0x2b2e35); solid(x, z, 0.3, 0.3, 1.3); F('mailbox', x, z, yawOut);
+      } else if (pick3 < 0.8) {
+        for (const k of [-1, 1]) { const mx = x + (alongX ? k * 1.7 : 0), mz = z + (alongX ? 0 : k * 1.7); F('parking_meter', mx, mz, yawOut); solid(mx, mz, 0.15, 0.15, 1.5); }
+      } else if (pick3 < 0.9) {
+        F('newspaper_box', x, z, yawOut); solid(x, z, 0.3, 0.3, 1.0);
+      } else if (pick3 < 0.95) {
+        for (const k of [-1.5, 0, 1.5]) { const mx = x + (alongX ? k : 0), mz = z + (alongX ? 0 : k); F('bollard', mx, mz, yawOut); solid(mx, mz, 0.13, 0.13, 0.9); }
+      } else if (!b.park) {
+        F('bus_shelter', x, z, yawOut); solid(x, z, alongX ? 1.8 : 0.8, alongX ? 0.8 : 1.8, 2.7);
       }
     }
   }
-  scene.add(new THREE.Mesh(mergeParts(parts, true), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x16161a })));
+  const oldFurn = new THREE.Mesh(mergeParts(parts, true), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x16161a }));
+  scene.add(oldFurn);
+  NHM.load('street_kit').then(root => { if (!root) return; oldFurn.visible = false; NHM.place(scene, root, FURN); });
 })();
 
 // Pay 'n' Spray: drive in with a wanted level to clear it and repair the car, or just to repair.
@@ -3497,10 +3554,10 @@ const SHOUSES = [];
   }
   HBASE = new THREE.Matrix4();
   // street lamps every ~44 m, alternating sides
-  const lampHeads = [];
-  SROADS.forEach(r => { let side = 1; for (let s = 22; s < r.rs.L - 10; s += 44) { let i = 0; while (i < r.rs.pts.length - 1 && r.rs.pts[i].s < s) i++; const p = r.rs.pts[i], x = p.x - p.tz * side * 6.3, z = p.z + p.tx * side * 6.3; side = -side; HGEO(UCYL, 0x30343c, x, 3.6, z, 0, 0, 0, 0.12, 7.2, 0.12); HB(0.9, 0.18, 0.5, x, 7.2, z, 0x30343c); lampHeads.push({ g: UBOX, m: MT(x, 7.05, z, 0, 0, 0, 0.8, 0.12, 0.4) }); } });
+  const lampHeads = [], SUBL = [];
+  SROADS.forEach(r => { let side = 1; for (let s = 22; s < r.rs.L - 10; s += 44) { let i = 0; while (i < r.rs.pts.length - 1 && r.rs.pts[i].s < s) i++; const p = r.rs.pts[i], x = p.x - p.tz * side * 6.3, z = p.z + p.tx * side * 6.3, sd = side; side = -side; SUBL.push({ x, z, r: Math.atan2(p.tz * sd, -p.tx * sd), sx: 0.92, sy: 0.92, sz: 0.92 }); } });
   const lampMat = new THREE.MeshBasicMaterial({ color: 0xffc46b });
-  scene.userData.subLampMat = lampMat; scene.add(new THREE.Mesh(mergeParts(lampHeads, false), lampMat));
+  scene.userData.subLampMat = lampMat; NHM.lamps(scene, SUBL, lampMat, true);
 
   const hm = new THREE.Mesh(mergeParts(HP, true), new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(hm);
   const mats = [new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xffc46b, emissiveIntensity: 0.3 }), new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xcfe6ff, emissiveIntensity: 0.3 }), new THREE.MeshLambertMaterial({ color: 0x232a36 })];
@@ -4658,7 +4715,8 @@ function sgCar(x, z, ry, col) {
   sgBox(x, z, Math.abs(c) * 1.9 + Math.abs(s) * 4.4, Math.abs(s) * 1.9 + Math.abs(c) * 4.4, 1.6);
 }
 const SGCARS = [0xc0392b, 0x2e86de, 0xe9e9ec, 0x27ae60, 0x2b2d33, 0x8d9199, 0xf1c40f, 0x7a2f2f, 0x1f3f6a, 0xd0d3d8, 0x2b2d33, 0xe9e9ec];
-const sgLamp = (x, z, h) => { sgb(0.22, h, 0.22, x, h / 2, z, 0x2a2d38); SGLH.push({ g: UBOX, m: MT(x, h + 0.05, z, 0, 0, 0, 1.1, 0.2, 0.6) }); };
+const SGL = [];
+const sgLamp = (x, z, h, dx, dz) => { const s = h / 7.9; SGL.push({ x, z, r: Math.atan2(dx || 0, dz === undefined ? 1 : dz), sx: s, sy: s, sz: s }); };
 
 // ---------------- ground, beach, seawall, roads ----------------
 (function buildSgGround() {
@@ -4704,8 +4762,8 @@ const sgLamp = (x, z, h) => { sgb(0.22, h, 0.22, x, h / 2, z, 0x2a2d38); SGLH.pu
     }
   }
   // street lamps every 40 m, alternating sides, skipping the junctions
-  for (const r of SGEW) { let sd = 1; for (let px = r.x0 + 24; px < r.x1 - 10; px += 40) { if (SGNS.some(n => Math.abs(px - n.x) < 16 && r.z >= n.z0 && r.z <= n.z1)) continue; sgLamp(px, r.z + sd * 9.6, 7.6); sd = -sd; } }
-  for (const r of SGNS) { let sd = 1; for (let pz = r.z0 + 24; pz < r.z1 - 6; pz += 40) { if (SGEW.some(e => Math.abs(pz - e.z) < 16)) continue; sgLamp(r.x + sd * 9.6, pz, 7.6); sd = -sd; } }
+  for (const r of SGEW) { let sd = 1; for (let px = r.x0 + 24; px < r.x1 - 10; px += 40) { if (SGNS.some(n => Math.abs(px - n.x) < 16 && r.z >= n.z0 && r.z <= n.z1)) continue; sgLamp(px, r.z + sd * 9.6, 7.6, 0, -sd); sd = -sd; } }
+  for (const r of SGNS) { let sd = 1; for (let pz = r.z0 + 24; pz < r.z1 - 6; pz += 40) { if (SGEW.some(e => Math.abs(pz - e.z) < 16)) continue; sgLamp(r.x + sd * 9.6, pz, 7.6, -sd, 0); sd = -sd; } }
   // the street trees on the long sidewalks
   for (const r of SGNS) for (let pz = r.z0 + 38; pz < r.z1 - 14; pz += 40) { if (SGEW.some(e => Math.abs(pz - e.z) < 18)) continue; sgTree(r.x - 10.4, pz, 0.8); sgTree(r.x + 10.4, pz + 14, 0.8); }
 })();
@@ -4726,7 +4784,7 @@ function sgLot(x0, z0, x1, z1, o) {
     const u = u0 + (i + 0.5) * 2.8, v = v0 + m * 18 + (row ? 12.5 + 2.75 : 2.75), ry = (vert ? Math.PI / 2 : 0) + (SGR() < 0.5 ? 0 : Math.PI) + sgr(-0.03, 0.03);
     sgCar(vert ? x0 + v : x0 + u, vert ? z0 + u : z0 + v, ry, sgp(SGCARS));
   }
-  for (let m = 0; m <= n; m++) for (let u = 14; u < W - 6; u += 34) { const v = v0 + m * 18 + 0.0; const px = vert ? x0 + v : x0 + u, pz = vert ? z0 + u : z0 + v; sgLamp(px, pz, 9); SGLH.push({ g: UBOX, m: MT(px, 9.05, pz, 0, 0, 0, 0.6, 0.2, 1.1) }); }
+  for (let m = 0; m <= n; m++) for (let u = 14; u < W - 6; u += 34) { const v = v0 + m * 18 + 0.0; const px = vert ? x0 + v : x0 + u, pz = vert ? z0 + u : z0 + v; sgLamp(px, pz, 9); }
   SGLOTS.push([x0, z0, x1, z1]);
 }
 
@@ -4913,7 +4971,7 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
   const mats = [new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xffc46b, emissiveIntensity: 0.3 }), new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xcfe6ff, emissiveIntensity: 0.3 }), new THREE.MeshLambertMaterial({ color: 0x1d2430, emissive: 0xffa85a, emissiveIntensity: 0.3 })];
   SGWN.forEach((arr, i) => { if (arr.length) SGG.add(new THREE.Mesh(mergeParts(arr, false), mats[i])); });
   wallMats.push(mats);
-  const lm = new THREE.MeshBasicMaterial({ color: 0x544f47 }); scene.userData.sgLampMat = lm; SGG.add(new THREE.Mesh(mergeParts(SGLH, false), lm));
+  const lm = new THREE.MeshBasicMaterial({ color: 0x544f47 }); scene.userData.sgLampMat = lm; NHM.lamps(SGG, SGL, lm, true);
   SGG.add(new THREE.Mesh(mergeParts(SGMK, false), new THREE.MeshLambertMaterial({ color: 0xe6e6e0, ...po(-12, -12) })));
   // trees: pines and leafy trees, instanced
   const T = SGT.filter(t => t.x > SG.x0 + 2 && t.x < SG.x1 - 2 && t.z < SG.z1 + 8), pines = T.filter(t => t.pine), leaves = T.filter(t => !t.pine);
