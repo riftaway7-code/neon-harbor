@@ -178,7 +178,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
       <dt class="kb">P / M</dt><dd class="kb">Pause / mute</dd>
     </dl>
     <div class="opts">
-      <label>Graphics <select id="optQ"><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option></select></label>
+      <label>Graphics <select id="optQ"><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option><option value="rtx">RTX</option></select></label>
       <label>Volume <input id="optVol" type="range" min="0" max="100" value="50"></label>
       <label><input id="optFps" type="checkbox"> Show FPS</label>
       <button id="optReset" type="button">Reset progress</button>
@@ -200,7 +200,20 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/SAOShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/DepthLimitedBlurShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/UnpackDepthRGBAShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SAOPass.js"></script>
 <script src="assets/models/trees_broadleaf.js"></script>
+<script src="assets/models/grass.js"></script>
 <script>
 (() => {
 'use strict';
@@ -215,10 +228,33 @@ const angDiff = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if
 const NHM = (() => {
   const loader = typeof THREE.GLTFLoader === 'function' ? new THREE.GLTFLoader() : null, cache = {};
   const decode = b64 => { const s = atob(b64), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a.buffer; };
-  const convert = m => {
-    const leaf = m.name === 'leaf', map = m.map;
+  const WIND = { time: { value: 0 }, gust: { value: 1 } };
+  const sway = (mat, reach, amp) => {
+    mat.onBeforeCompile = sh => {
+      sh.uniforms.uTime = WIND.time; sh.uniforms.uGust = WIND.gust;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uGust;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+        float hh = clamp(position.y / ${reach.toFixed(2)}, 0.0, 1.0); hh *= hh;
+        #ifdef USE_INSTANCING
+        vec2 ip = instanceMatrix[3].xz;
+        #else
+        vec2 ip = vec2(0.0);
+        #endif
+        float ph = ip.x * 0.31 + ip.y * 0.23;
+        float wv = sin(uTime * 1.7 + ph) * 0.55 + sin(uTime * 3.3 + ph * 1.9 + position.x * 9.0) * 0.22 + sin(uTime * 0.45 + ip.x * 0.04 + ip.y * 0.03) * 0.7;
+        transformed.x += wv * ${amp.toFixed(3)} * hh * uGust;
+        transformed.z += cos(uTime * 1.25 + ph * 1.3) * ${(amp * 0.55).toFixed(3)} * hh * uGust;
+        transformed.y -= abs(wv) * ${(amp * 0.25).toFixed(3)} * hh * uGust;`);
+    };
+  };
+  const convert = (m, geo) => {
+    const leaf = m.name === 'leaf', grass = m.name === 'grass', map = m.map;
     if (map) map.encoding = THREE.LinearEncoding;
-    return new THREE.MeshLambertMaterial({ map, color: leaf ? 0xd6e8c4 : 0x6e5f52, side: leaf ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
+    const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xd6e8c4 : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
+    if (grass) sway(mat, 0.7, 0.16);
+    else if (leaf) sway(mat, 9.0, 0.22);
+    return mat;
   };
   function load(key) {
     if (cache[key]) return cache[key];
@@ -230,7 +266,7 @@ const NHM = (() => {
     const node = root.getObjectByName(name), out = [];
     if (!node) return out;
     root.updateMatrixWorld(true);
-    node.traverse(o => { if (o.isMesh) out.push({ geometry: o.geometry, material: convert(o.material), matrix: o.matrixWorld.clone(), leaf: o.material.name === 'leaf' }); });
+    node.traverse(o => { if (o.isMesh) out.push({ geometry: o.geometry, material: convert(o.material, o.geometry), matrix: o.matrixWorld.clone(), leaf: o.material.name === 'leaf' }); });
     return out;
   }
   function instance(parent, root, names, list, tints) {
@@ -255,7 +291,7 @@ const NHM = (() => {
     });
     return made;
   }
-  return { load, instance };
+  return { load, instance, WIND };
 })();
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -271,6 +307,7 @@ const STREETS_H = ['Wharf', 'Ballast', 'Bowsprit', 'Keel', 'Main Quay', 'Starboa
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+const RTX = { on: false, composer: null, fxaa: null, sao: null, bloom: null, scan: 0 };
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x3a3350, 70, 440);
 const camera = new THREE.PerspectiveCamera(65, 1, 0.5, 900);
@@ -278,6 +315,7 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  rtxResize(w, h);
 }
 window.addEventListener('resize', resize); resize();
 
@@ -428,6 +466,7 @@ for (let bi = -R; bi < R; bi++) for (let bj = -R; bj < R; bj++) {
   scene.userData.beam = pivot;
 })();
 
+const grassPatches = [];
 // ---- Trees ----
 (function placeTrees() {
   const n = trees.length;
@@ -445,6 +484,22 @@ for (let bi = -R; bi < R; bi++) for (let bj = -R; bj < R; bj++) {
     trunk.visible = false; crown.visible = false;
     const list = trees.map(t => ({ x: t[0], z: t[1], s: t[2] * 0.9, r: Math.abs(Math.sin(t[0] * 12.9898 + t[1] * 78.233)) * TAU }));
     NHM.instance(scene, root, ['tree_oak', 'tree_oak_b', 'tree_oak_c'], list, [0xffffff, 0xf2ffd8, 0xffeeb8, 0xdfffe0]);
+  });
+  const grassRng = mulberry(90210);
+  NHM.load('grass').then(root => {
+    if (!root) return;
+    for (const b of blocks) {
+      if (!b.park) continue;
+      const list = [], n = b.bi === 0 && b.bj === 0 ? 1500 : 1300;
+      for (let k = 0; k < n; k++) {
+        const x = b.cx + (grassRng() - 0.5) * 52, z = b.cz + (grassRng() - 0.5) * 52;
+        if (b.bi === 0 && b.bj === 0 && Math.hypot(x - b.cx, z - b.cz) < 7) continue;
+        list.push({ x, z, s: 0.8 + grassRng() * 0.9, r: grassRng() * TAU });
+      }
+      const g = new THREE.Group(); scene.add(g);
+      for (const im of NHM.instance(g, root, ['grass_short', 'grass_mid', 'grass_tall'], list, null)) im.userData.noShadow = true;
+      grassPatches.push({ g, x: b.cx, z: b.cz });
+    }
   });
 })();
 
@@ -2338,8 +2393,9 @@ function initExtras() {
 // ---- settings ----
 function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify({ vol: SYS.vol, quality: SYS.quality, fps: SYS.showFps })); } catch (e) { /* ignore */ } }
 function applyQuality() {
-  const ratio = { low: 1, med: 1.25, high: 1.75 }[SYS.quality] || 1.75;
+  const ratio = { low: 1, med: 1.25, high: 1.75, rtx: 2 }[SYS.quality] || 1.75;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ratio)); resize();
+  rtxSetup(SYS.quality === 'rtx');
 }
 function applyVolume() { if (master) master.gain.value = muted ? 0 : SYS.vol; }
 const fpsEl = document.createElement('div');
@@ -5159,12 +5215,75 @@ function update(dt) {
   if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); }
   updateCamera(dt);
 }
+
+function rtxResize(w, h) {
+  if (!RTX.composer) return;
+  const pr = renderer.getPixelRatio();
+  RTX.composer.setPixelRatio(pr); RTX.composer.setSize(w, h);
+  if (RTX.fxaa) RTX.fxaa.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+}
+function rtxBuild() {
+  if (RTX.composer) return true;
+  if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SAOPass || !THREE.UnrealBloomPass || !THREE.ShaderPass || !THREE.FXAAShader) return false;
+  const w = window.innerWidth, h = window.innerHeight;
+  const comp = new THREE.EffectComposer(renderer);
+  comp.addPass(new THREE.RenderPass(scene, camera));
+  const sao = new THREE.SAOPass(scene, camera, false, true);
+  sao.params.saoBias = 0.6; sao.params.saoIntensity = 0.012; sao.params.saoScale = 18; sao.params.saoKernelRadius = 24; sao.params.saoBlurRadius = 6; sao.params.saoBlurStdDev = 3; sao.params.saoBlurDepthCutoff = 0.02;
+  comp.addPass(sao);
+  const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.55, 0.86);
+  comp.addPass(bloom);
+  const fxaa = new THREE.ShaderPass(THREE.FXAAShader);
+  comp.addPass(fxaa);
+  RTX.composer = comp; RTX.sao = sao; RTX.bloom = bloom; RTX.fxaa = fxaa;
+  rtxResize(w, h);
+  return true;
+}
+function rtxMarkShadows() {
+  scene.traverse(o => {
+    if (!o.isMesh || o.userData.noShadow) return;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (!m || m.isMeshBasicMaterial || m.transparent || m.depthWrite === false) return;
+    if (o.castShadow !== RTX.on || o.receiveShadow !== RTX.on) { o.castShadow = RTX.on; o.receiveShadow = RTX.on; }
+  });
+}
+function rtxSetup(on) {
+  if (on && !rtxBuild()) on = false;
+  if (on === RTX.on) return;
+  RTX.on = on;
+  renderer.shadowMap.enabled = on;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1.25;
+  sun.castShadow = on;
+  if (on) {
+    const sh = sun.shadow, cam = sh.camera;
+    sh.mapSize.set(4096, 4096); cam.left = -110; cam.right = 110; cam.top = 110; cam.bottom = -110; cam.near = 1; cam.far = 520;
+    sh.bias = -0.0006; sh.normalBias = 0.35;
+    if (sh.map) { sh.map.dispose(); sh.map = null; }
+    scene.add(sun.target);
+  }
+  rtxMarkShadows();
+  scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); });
+  resize();
+}
+function rtxFrame(dt) {
+  RTX.scan -= dt;
+  if (RTX.scan <= 0) { RTX.scan = 1.5; rtxMarkShadows(); }
+  const px = player.car ? player.car.x : player.x, pz = player.car ? player.car.z : player.z;
+  const gx = Math.round(px / 8) * 8, gz = Math.round(pz / 8) * 8;
+  sun.target.position.set(gx, 0, gz);
+  sun.position.set(gx + sun.position.x, sun.position.y, gz + sun.position.z);
+  sun.target.updateMatrixWorld();
+}
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state !== 'paused') update(dt);
-  renderer.render(scene, camera);
+  NHM.WIND.time.value = now / 1000; NHM.WIND.gust.value = 0.7 + 0.5 * (0.5 + 0.5 * Math.sin(now / 4200)) + ENV.rain * 0.8;
+  for (const gp of grassPatches) gp.g.visible = (gp.x - camera.position.x) ** 2 + (gp.z - camera.position.z) ** 2 < 210 * 210;
+  if (RTX.on) { if (state !== 'paused') rtxFrame(dt); RTX.composer.render(dt); } else renderer.render(scene, camera);
 }
 function setPaused(p) {
   if (!started) return;
