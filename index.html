@@ -213,6 +213,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SAOPass.js"></script>
+<script src="assets/js/realism.js"></script>
 <script src="assets/models/trees_broadleaf.js"></script>
 <script src="assets/models/grass.js"></script>
 <script src="assets/models/city_props.js"></script>
@@ -2229,6 +2230,7 @@ function clockText() {
   return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + (ENV.rain > 0.3 ? '  RAIN' : '');
 }
 
+const REALW = { wet: 0, sd: new THREE.Vector3(), sc: new THREE.Color() };
 function updateEnv(dt) {
   ENV.hour = (ENV.hour + ENV.speed * dt) % 24;
   ENV.weatherT -= dt;
@@ -2242,6 +2244,8 @@ function updateEnv(dt) {
   scene.fog.color.copy(CUR.fog).lerp(GREY, rn * 0.5); scene.fog.near = lerp(70, 30, rn); scene.fog.far = lerp(440, 230, rn);
   ENV.lamp = CUR.lamp; ENV.win = CUR.win;
   if (ATM) ATM.update(dt, ENV, CUR, rn, a);
+  REALW.wet = Math.max(REALW.wet - dt / 120, rn); REALW.sd.set(-Math.cos(a) * 150, Math.max(28, Math.sin(a) * 130), -70).normalize(); REALW.sc.copy(sun.color).multiplyScalar(Math.min(1, sun.intensity) * (1 - rn * 0.75));
+  if (window.NH_REAL) NH_REAL.update({ wet: REALW.wet, grime: 1, hor: scene.fog.color, zen: hemi.color, sun: REALW.sd, sunCol: REALW.sc });
 
   ENV.skyT -= dt;
   if (ENV.skyT <= 0) {
@@ -5713,6 +5717,7 @@ function rtxResize(w, h) {
   const pr = renderer.getPixelRatio();
   RTX.composer.setPixelRatio(pr); RTX.composer.setSize(w, h);
   if (RTX.fxaa) RTX.fxaa.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+  if (RTX.grade) RTX.grade.uniforms.uRes.value.set(w * pr, h * pr);
 }
 function rtxBuild() {
   if (RTX.composer) return true;
@@ -5728,7 +5733,31 @@ function rtxBuild() {
   comp.addPass(sao);
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.55, 0.86);
   comp.addPass(bloom);
-  RTX.composer = comp; RTX.sao = sao; RTX.bloom = bloom; RTX.fxaa = null;
+  const grade = new THREE.ShaderPass({
+    uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(w, h) }, uWet: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D tDiffuse; uniform float uTime; uniform vec2 uRes; uniform float uWet; varying vec2 vUv;
+      float hash(vec2 p){ p = fract(p * vec2(443.897, 441.423)); p += dot(p, p.yx + 19.19); return fract((p.x + p.y) * p.x); }
+      void main(){
+        vec2 px = 1.0 / uRes;
+        vec3 c = texture2D(tDiffuse, vUv).rgb;
+        vec3 b = (texture2D(tDiffuse, vUv + vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, vUv + vec2(0.0, px.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, px.y)).rgb) * 0.25;
+        c += (c - b) * 0.55;
+        float l = dot(c, vec3(0.299, 0.587, 0.114));
+        c = mix(vec3(l), c, 1.0 + 0.02 * (1.0 - l));
+        vec3 s = c * c * (3.0 - 2.0 * c);
+        c = mix(c, s, 0.42);
+        c *= mix(vec3(0.985, 1.0, 1.03), vec3(1.04, 1.0, 0.95), smoothstep(0.15, 0.85, l));
+        c *= 1.0 - uWet * 0.06;
+        vec2 q = vUv - 0.5; q.x *= uRes.x / uRes.y;
+        c *= 1.0 - smoothstep(0.35, 1.05, length(q)) * 0.38;
+        c += (hash(vUv * uRes + fract(uTime) * 61.0) - 0.5) * 0.022;
+        gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+      }`
+  });
+  comp.addPass(grade);
+  RTX.composer = comp; RTX.sao = sao; RTX.bloom = bloom; RTX.grade = grade; RTX.fxaa = null;
   rtxResize(w, h);
   return true;
 }
@@ -5771,7 +5800,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { get heat() { return heat; }, set heat(v) { heat = v; }, get level() { return level; }, get AC() { return AC; }, get master() { return master; }, SND, AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { setCam: (y, p) => { camYaw = y; if (p != null) camPitch = p; }, get heat() { return heat; }, set heat(v) { heat = v; }, get level() { return level; }, get AC() { return AC; }, get master() { return master; }, SND, AIR, NAVG, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
@@ -5780,7 +5809,7 @@ function frame(now) {
   NHM.WIND.time.value = now / 1000; NHM.WIND.gust.value = 0.7 + 0.5 * (0.5 + 0.5 * Math.sin(now / 4200)) + ENV.rain * 0.8;
   GRASS.update(dt);
   if (DEVCAM) { camera.position.set(DEVCAM[0], DEVCAM[1], DEVCAM[2]); camera.lookAt(DEVCAM[3], DEVCAM[4], DEVCAM[5]); }
-  if (RTX.on) { if (state !== 'paused') rtxFrame(dt); RTX.composer.render(dt); } else renderer.render(scene, camera);
+  if (RTX.on) { if (state !== 'paused') rtxFrame(dt); RTX.grade.uniforms.uTime.value = now / 1000; RTX.grade.uniforms.uWet.value = ENV.rain; RTX.composer.render(dt); } else renderer.render(scene, camera);
 }
 function setPaused(p) {
   if (!started) return;
