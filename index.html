@@ -217,6 +217,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/city_props.js"></script>
 <script src="assets/models/street_kit.js"></script>
 <script src="assets/models/cars.js"></script>
+<script src="assets/models/plants.js"></script>
 <script src="assets/models/human.js"></script>
 <script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
@@ -255,10 +256,11 @@ const NHM = (() => {
         transformed.y -= abs(wv) * ${(amp * 0.25).toFixed(3)} * hh * uGust;`);
     };
   };
-  const convert = (m, geo) => {
-    const leaf = m.name === 'leaf', grass = m.name === 'grass', prop = m.name === 'prop', map = m.map;
+  const LEAFY = { leaf: 1, twig: 1, shrub: 1 };
+  const convert = (m, geo, nodeName) => {
+    const leaf = !!LEAFY[m.name], grass = m.name === 'grass', prop = m.name === 'prop', map = m.map, palm = prop && nodeName && nodeName.indexOf('palm') === 0;
     if (map) map.encoding = THREE.LinearEncoding;
-    const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xc2dcae : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
+    const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xc2dcae : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass || prop ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
     if ((grass || prop) && geo && geo.attributes.color && !geo.userData.lifted) {
       const c = geo.attributes.color, arr = c.array, sc = arr instanceof Uint8Array ? 255 : arr instanceof Uint16Array ? 65535 : 1, step = c.itemSize;
       for (let i = 0; i < c.count; i++) for (let k = 0; k < 3; k++) {
@@ -268,6 +270,9 @@ const NHM = (() => {
       c.needsUpdate = true; geo.userData.lifted = true;
     }
     if (grass) sway(mat, 0.7, 0.16);
+    else if (palm) sway(mat, 11.0, 0.5);
+    else if (m.name === 'shrub') sway(mat, 1.4, 0.05);
+    else if (m.name === 'twig') sway(mat, 11.0, 0.14);
     else if (leaf) sway(mat, 9.0, 0.22);
     return mat;
   };
@@ -321,7 +326,7 @@ const NHM = (() => {
     const node = root.getObjectByName(name), out = [];
     if (!node) return out;
     root.updateMatrixWorld(true);
-    node.traverse(o => { if (o.isMesh) out.push({ geometry: o.geometry, material: convert(o.material, o.geometry), matrix: o.matrixWorld.clone(), leaf: o.material.name === 'leaf' }); });
+    node.traverse(o => { if (o.isMesh) out.push({ geometry: o.geometry, material: convert(o.material, o.geometry, name), matrix: o.matrixWorld.clone(), leaf: !!LEAFY[o.material.name] }); });
     return out;
   }
   function instance(parent, root, names, list, tints) {
@@ -347,6 +352,34 @@ const NHM = (() => {
     return made;
   }
   return { load, instance, place, lamps, WIND };
+})();
+const VEG = (() => {
+  const ang = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233)) * TAU;
+  const AUTUMN = [0xffffff, 0xf2ffd8, 0xffeeb8, 0xdfffe0, 0xe8b070, 0xd0884a];
+  const GREENS = [0xffffff, 0xf2ffd8, 0xffeeb8, 0xdfffe0];
+  function replace(parent, T, hide, autumn) {
+    Promise.all([NHM.load('plants'), NHM.load('trees_broadleaf')]).then(([pl, br]) => {
+      if (!pl || !br) return;
+      for (const o of hide) o.visible = false;
+      const cons = [], broad = [];
+      T.forEach(t => { const it = { x: t.x, z: t.z, s: t.s * (t.pine ? 0.85 : 0.95), r: ang(t.x, t.z) }; (t.pine ? cons : broad).push(it); });
+      NHM.instance(parent, pl, ['conifer_a', 'conifer_b', 'conifer_c'], cons, null);
+      NHM.instance(parent, br, ['tree_oak', 'tree_oak_b', 'tree_oak_c'], broad, autumn ? AUTUMN : GREENS);
+    });
+  }
+  function palms(parent, list) {
+    NHM.load('plants').then(pl => {
+      if (!pl) return;
+      NHM.instance(parent, pl, ['palm_a', 'palm_b', 'palm_c'], list.map(p => ({ x: p[0], z: p[1], s: 0.85 + (ang(p[0], p[1]) / TAU) * 0.35, r: ang(p[1], p[0]) })), null);
+    });
+  }
+  function shrubs(parent, list) {
+    NHM.load('plants').then(pl => {
+      if (!pl) return;
+      NHM.instance(parent, pl, ['shrub_a', 'shrub_b', 'shrub_c'], list.map(p => ({ x: p[0], z: p[1], s: p[2] || 1, r: ang(p[0], p[1]) })), [0xffffff, 0xe8f4d0, 0xf6ffe0, 0xd0e8c0]);
+    });
+  }
+  return { replace, palms, shrubs };
 })();
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -3072,7 +3105,7 @@ const solidAt = (x, z, w, d, h) => solids.push({ x0: x - w / 2, x1: x + w / 2, z
 // ---------------- ground, roads, fields ----------------
 (function buildCountryGround() {
   const GW = 652, GD = 740, gt = grassTex.clone(); gt.needsUpdate = true; gt.repeat.set(GW / 8, GD / 8);
-  const g = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: gt }));
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD).rotateX(-Math.PI / 2), groundDetail(new THREE.MeshLambertMaterial({ map: gt }), 1.8, 0.1, 0.4));
   g.position.set(COUNTRY.x0 + GW / 2, 0.01, -60 - GD / 2); scene.add(g);
 
   function asphaltTex(L) {
@@ -3312,6 +3345,7 @@ const windBlades = new THREE.Group();
     col.setHex(CR() < 0.55 ? pick(autumn) : 0x3f7a3c).multiplyScalar(0.85 + CR() * 0.3); blobs.setColorAt(i, col);
   });
   for (const im of [trunks, coneA, coneB, blobs]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  VEG.replace(scene, T, [trunks, coneA, coneB, blobs], true);
 })();
 
 // ---------------- distant hills framing the valley ----------------
@@ -3455,7 +3489,7 @@ const POND = [585, 112, 34];
 // ---------------- ground, streets, sidewalks ----------------
 (function buildSuburbGround() {
   const GW = 612, GD = 480, gt = grassTex.clone(); gt.needsUpdate = true; gt.repeat.set(GW / 8, GD / 8);
-  const g = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: gt }));
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD).rotateX(-Math.PI / 2), groundDetail(new THREE.MeshLambertMaterial({ map: gt }), 1.8, 0.1, 0.4));
   g.position.set(SUB.x0 + GW / 2, 0.012, -60 + GD / 2); scene.add(g);
   const edge = new THREE.MeshLambertMaterial({ color: 0x5b5a5c });
   const q = new THREE.Mesh(unitBox, edge); q.scale.set(3, 4, 76); q.position.set(SUB.x0 + 1.5, -1.4, 386); scene.add(q);   // quay below the city's south-east corner
@@ -3611,7 +3645,7 @@ const SHOUSES = [];
   const WALLS = [0xe9e1cf, 0xd9c8a8, 0xb9c4cf, 0x9fb59a, 0xe6d3d0, 0xf0f0ea, 0xc9b28a, 0x8aa0b8, 0xd6b9a0, 0xc7cfc0], ROOFS = [0x5b4036, 0x3d4046, 0x6e3a30, 0x4b5560, 0x57493d, 0x2f3a33];
   const DOORS = [0x8c2f2a, 0x2f4f7a, 0x2f5c3a, 0x3a3a3a, 0xb78a2a, 0x6a3a7a];
   const mailbox = (x, z) => { HBASE = new THREE.Matrix4(); HB(0.12, 1.1, 0.12, x, 0.55, z, 0x5b4630); HB(0.3, 0.3, 0.55, x, 1.2, z, spick([0x2f4f7a, 0x8c2f2a, 0x3a3a3a])); };
-  const treeSpots = [];
+  const treeSpots = [], shrubSpots = [];
   for (const h of SITES) {
     const M = h.M, [x0, x1, z0, z1] = M.ext, ry = h.ry;
     HBASE = new THREE.Matrix4().compose(new THREE.Vector3(h.ox, 0, h.oz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(1, 1, 1));
@@ -3639,10 +3673,17 @@ const SHOUSES = [];
     mailbox(h.p.x + h.nx * 8.3 + h.p.tx * 3, h.p.z + h.nz * 8.3 + h.p.tz * 3);
     if (SR() < 0.65) { const tx = h.p.x + h.nx * 9.3 + h.p.tx * srnd(-9, -5), tz = h.p.z + h.nz * 9.3 + h.p.tz * srnd(-9, -5); treeSpots.push({ x: tx, z: tz, solid: true }); }
     SHOUSES.push({ x: h.cx, z: h.cz, ry, ext: M.ext, ox: h.ox, oz: h.oz, c: wallC });
+    for (let k = 0; k < 5; k++) {
+      const lx = lerp(x0 + 1.2, x1 - 1.2, (k + 0.5) / 5 + srnd(-0.04, 0.04)), lz = z1 + 0.85 + srnd(0, 0.3);
+      if (Math.abs(lx - M.park) < 2.6 || SR() < 0.25) continue;
+      shrubSpots.push([h.ox + lx * dx + lz * fx, h.oz + lx * dz + lz * fz, srnd(0.85, 1.3)]);
+    }
     for (let k = 0; k < 2; k++) if (SR() < 0.75) treeSpots.push({ x: h.cx + h.nx * srnd(8, 15) + h.p.tx * srnd(-13, 13), z: h.cz + h.nz * srnd(8, 15) + h.p.tz * srnd(-13, 13), solid: false });
   }
   HBASE = new THREE.Matrix4();
   if (HH) HH.finish();
+  VEG.shrubs(scene, shrubSpots);
+  GRASS.addZone(SUB.x0 + 4, SUB.z0 + 4, SUB.x1 - 4, SUB.z1 - 4, (x, z) => nearestRoad(x, z) > 8.2 && Math.hypot(x - POND[0], z - POND[1]) > 25 && !SITES.some(s => Math.hypot(x - s.cx, z - s.cz) < s.R * 0.78));
   // street lamps every ~44 m, alternating sides
   const lampHeads = [], SUBL = [];
   SROADS.forEach(r => { let side = 1; for (let s = 22; s < r.rs.L - 10; s += 44) { let i = 0; while (i < r.rs.pts.length - 1 && r.rs.pts[i].s < s) i++; const p = r.rs.pts[i], x = p.x - p.tz * side * 6.3, z = p.z + p.tx * side * 6.3, sd = side; side = -side; SUBL.push({ x, z, r: Math.atan2(p.tz * sd, -p.tx * sd), sx: 0.92, sy: 0.92, sz: 0.92 }); } });
@@ -3666,6 +3707,7 @@ const SHOUSES = [];
   pines.forEach((t, i) => { const ht = 1.8 * t.s, g = 0.16 + SR() * 0.08; p.set(t.x, ht * 0.6 + 2.6 * t.s, t.z); sc.set(2.3 * t.s, 5.2 * t.s, 2.3 * t.s); m.compose(p, q, sc); cA.setMatrixAt(i, m); p.set(t.x, ht * 0.6 + 5.6 * t.s, t.z); sc.set(1.7 * t.s, 4 * t.s, 1.7 * t.s); m.compose(p, q, sc); cB.setMatrixAt(i, m); col.setRGB(0.07 + g * 0.2, g + 0.12, 0.09 + g * 0.15); cA.setColorAt(i, col); cB.setColorAt(i, col); });
   leaves.forEach((t, i) => { const ht = 2.4 * t.s; p.set(t.x, ht + 1.9 * t.s, t.z); sc.set(2.6 * t.s, 2.2 * t.s, 2.6 * t.s); m.compose(p, q, sc); blobs.setMatrixAt(i, m); col.setHex(SR() < 0.5 ? spick(autumn) : 0x3f7a3c).multiplyScalar(0.85 + SR() * 0.3); blobs.setColorAt(i, col); });
   for (const im of [trunks, cA, cB, blobs]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  VEG.replace(scene, T, [trunks, cA, cB, blobs], true);
 })();
 
 // ---------------- minimap layer ----------------
@@ -4635,6 +4677,7 @@ function nearNorthRoad(x, z, m) { return Math.abs(z + 540) < 5 + m && x < 352 &&
   const autumn = [0xc8742a, 0xd1a032, 0xa8452a, 0x6f8f3a, 0x4f7f3a];
   leaves.forEach((t, i) => { const ht = 2.4 * t.s; p.set(t.x, ht + 1.9 * t.s, t.z); s.set(2.6 * t.s, 2.2 * t.s, 2.6 * t.s); m.compose(p, q, s); blobs.setMatrixAt(i, m); col.setHex(NR() < 0.5 ? pick(autumn) : 0x3f7a3c).multiplyScalar(0.85 + NR() * 0.3); blobs.setColorAt(i, col); });
   for (const im of [trunks, coneA, coneB, blobs]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  VEG.replace(scene, T, [trunks, coneA, coneB, blobs], true);
   // reeds around the lake
   const R = [], L = NORTH.lake; for (let i = 0; i < 70; i++) { const a = NR() * TAU, k = 1.02 + NR() * 0.16; R.push([L.x + Math.cos(a) * (L.rx + 1) * k, L.z + Math.sin(a) * (L.rz + 1) * k, nrnd(1, 1.8)]); }
   const reeds = mk(new THREE.CylinderGeometry(0.03, 0.05, 1, 4), R.length, 0x7c8f3c); R.forEach((r, i) => { p.set(r[0], r[2] / 2, r[1]); s.set(1, r[2], 1); q.identity(); m.compose(p, q, s); reeds.setMatrixAt(i, m); }); reeds.instanceMatrix.needsUpdate = true;
@@ -5050,11 +5093,9 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
 (function buildPalms() {
   for (const [px, pz] of SGPALM) {
     const h = sgr(7, 9), lean = sgr(-0.08, 0.08);
-    for (let k = 0; k < 4; k++) sgb(0.5 - k * 0.05, h / 4, 0.5 - k * 0.05, px + lean * k * 2, h / 8 + k * h / 4, pz, k % 2 ? 0x7a5a38 : 0x6a4c2f);
-    const tx = px + lean * 8;
-    for (let i = 0; i < 7; i++) { const ph = i * (Math.PI * 2 / 7) + sgr(-0.15, 0.15); sgb(4.4, 0.1, 1.1, tx + Math.cos(ph) * 2.1, h + 0.2, pz - Math.sin(ph) * 2.1, i % 2 ? 0x2f7a3a : 0x3a8a40, ph, 0, -0.35); }
     sgBox(px, pz, 0.7, 0.7, h);
   }
+  VEG.palms(SGG, SGPALM);
 })();
 (function buildSgMeshes() {
   SGG.add(new THREE.Mesh(mergeParts(SGP, true), new THREE.MeshLambertMaterial({ vertexColors: true })));
@@ -5073,6 +5114,7 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
   const greens = [0x3f7a3c, 0x4a8a3a, 0x356a38, 0x6f8f3a, 0xc8742a];
   leaves.forEach((t, i) => { const ht = 2.4 * t.s; p.set(t.x, ht + 1.9 * t.s, t.z); sc.set(2.6 * t.s, 2.2 * t.s, 2.6 * t.s); m.compose(p, q, sc); blobs.setMatrixAt(i, m); col.setHex(sgp(greens)).multiplyScalar(0.85 + SGR() * 0.3); blobs.setColorAt(i, col); });
   for (const im of [trunks, cA, blobs]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  VEG.replace(SGG, T, [trunks, cA, blobs], false);
 })();
 
 // ---------------- map layer ----------------
