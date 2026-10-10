@@ -1215,7 +1215,8 @@ const pPos = new Float32Array(PN * 3).fill(-100), pCol = new Float32Array(PN * 3
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
 pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
-const pts = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
+const softTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.45, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const pts = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 1.1, map: softTex, vertexColors: true, transparent: true, opacity: 0.7, depthWrite: false }));
 pts.frustumCulled = false; scene.add(pts);
 let pHead = 0;
 function emit(x, y, z, vx, vy, vz, life, r, g, b) {
@@ -2994,19 +2995,49 @@ $('hpbar').parentNode.after(armorBarW); $('carbarw').after(boostBarW);
 const armorFill = armorBarW.firstChild, boostFill = boostBarW.firstChild;
 
 // ---- nitro: hold Shift in a car ----
-const BOOST = { mul: 1, acc: 1, fuel: 1, on: false };
+const BOOST = { mul: 1, acc: 1, fuel: 1, on: false, k: 0 };
+const FLAME = (() => {
+  const geo = new THREE.ConeGeometry(0.17, 2.6, 12, 1, true); geo.translate(0, 1.3, 0); geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) { const t = clamp(-pos.getZ(i) / 2.6, 0, 1), v = Math.pow(1 - t, 1.4); col[i * 3] = (0.55 + 0.45 * (1 - t)) * v; col[i * 3 + 1] = (0.7 + 0.3 * (1 - t)) * v; col[i * 3 + 2] = v; }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const glow = new THREE.SpriteMaterial({ map: HL.lampTex, color: 0x8fb6ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const items = [];
+  for (let i = 0; i < 2; i++) {
+    const m = new THREE.Mesh(geo, mat), m2 = new THREE.Mesh(geo, mat), s = new THREE.Sprite(glow);
+    m.visible = m2.visible = s.visible = false; m.frustumCulled = m2.frustumCulled = false; scene.add(m, m2, s); items.push({ m, m2, s });
+  }
+  return items;
+})();
+function updateFlame(dt, car) {
+  const on = BOOST.on && car;
+  BOOST.k += ((on ? 1 : 0) - BOOST.k) * Math.min(1, dt * (on ? 14 : 8));
+  const k = BOOST.k;
+  for (let i = 0; i < 2; i++) {
+    const F = FLAME[i], vis = k > 0.03 && car;
+    F.m.visible = F.m2.visible = F.s.visible = !!vis;
+    if (!vis) continue;
+    const sn = Math.sin(car.h), cs = Math.cos(car.h), L = car.m && car.m.S ? car.m.S.L : 2.1, side = i ? 0.45 : -0.45, fl = 0.85 + Math.random() * 0.35;
+    const px = car.x - sn * (L + 0.05) + cs * side, pz = car.z - cs * (L + 0.05) - sn * side;
+    F.m.position.set(px, 0.5, pz); F.m.rotation.set(0, car.h, 0); F.m.scale.set(k, k, k * fl);
+    F.m2.position.set(px, 0.5, pz); F.m2.rotation.set(0, car.h, 0); F.m2.scale.set(k * 0.55, k * 0.55, k * fl * 0.6);
+    F.s.position.set(px - sn * 0.2, 0.5, pz - cs * 0.2); const gs = (0.9 + Math.random() * 0.25) * k; F.s.scale.set(gs * 1.6, gs * 1.6, 1);
+  }
+}
 function updateBoost(dt) {
   const car = player.car, want = !!(car && car.hp > 0 && (keys.ShiftLeft || keys.ShiftRight) && BOOST.fuel > 0.02 && Math.hypot(car.vx, car.vz) > 3 && !menuOpen);
   BOOST.on = want;
   if (want) {
     BOOST.fuel = Math.max(0, BOOST.fuel - dt / 2.5); BOOST.mul += (1.35 - BOOST.mul) * Math.min(1, dt * 4); BOOST.acc += (2.2 - BOOST.acc) * Math.min(1, dt * 4);
     const sn = Math.sin(car.h), cs = Math.cos(car.h);
-    for (const side of [-0.45, 0.45]) emit(car.x - sn * 2.3 + cs * side, 0.5, car.z - cs * 2.3 - sn * side, -sn * 6 + rnd(-0.6, 0.6), rnd(0, 0.8), -cs * 6 + rnd(-0.6, 0.6), 0.25, 0.5, 0.65, 1);
+    if (Math.random() < dt * 40) for (const side of [-0.45, 0.45]) emit(car.x - sn * 2.5 + cs * side, 0.5, car.z - cs * 2.5 - sn * side, -sn * 9 + rnd(-0.5, 0.5), rnd(0.2, 1.0), -cs * 9 + rnd(-0.5, 0.5), 0.3, 1, 0.62, 0.25);
     shake = Math.max(shake, 0.05);
   } else {
     BOOST.mul += (1 - BOOST.mul) * Math.min(1, dt * 3); BOOST.acc += (1 - BOOST.acc) * Math.min(1, dt * 3);
     if (!(keys.ShiftLeft || keys.ShiftRight)) BOOST.fuel = Math.min(1, BOOST.fuel + dt / 8);
   }
+  updateFlame(dt, car);
   boostBarW.style.visibility = car ? 'visible' : 'hidden';
   boostFill.style.transform = 'scaleX(' + BOOST.fuel + ')';
 }
