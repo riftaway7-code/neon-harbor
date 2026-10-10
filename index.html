@@ -220,6 +220,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/human.js"></script>
 <script src="assets/js/human.js"></script>
 <script src="assets/js/buildings.js"></script>
+<script src="assets/js/houses.js"></script>
 <script>
 (() => {
 'use strict';
@@ -1325,6 +1326,7 @@ function makeCarMesh(color, cop) {
     lb = new THREE.Mesh(G.bar, new THREE.MeshBasicMaterial({ color: 0x2a5aff })); lb.position.set(0.3, T.roofY + 0.06, T.roofZ); g.add(lb);
     for (const sx of [-1, 1]) { const d = new THREE.Mesh(policeGeo, policeMat); d.position.set(sx * 0.947, 0.66, T.doorZ); d.rotation.y = sx * Math.PI / 2; g.add(d); }
   }
+  g.userData.ctype = nm;
   scene.add(g);
   return { g, body, roof: body, lit, lr, lb, type: nm };
 }
@@ -1344,6 +1346,12 @@ NHM.load('cars').then(root => {
     if (!T) continue;
     ch[0].geometry = T.paint; ch[1].geometry = T.detail; ch[2].geometry = T.lit;
   }
+  scene.traverse(o => {
+    if (!o.userData || !o.userData.ctype || o.children.length < 3 || o.userData.glDone) return;
+    const T = carTypes[o.userData.ctype]; if (!T) return;
+    o.userData.glDone = true;
+    o.children[0].geometry = T.paint; o.children[1].geometry = T.detail; o.children[2].geometry = T.lit;
+  });
 });
 function placeOnLane(c, axis, road, sgn, p) {
   c.axis = axis; c.road = road; c.sgn = sgn;
@@ -3504,6 +3512,9 @@ function HGABLE(cx, by, cz, L, Wd, rise, rc, wc) {                // gabled roof
   for (const sx of [-1, 1]) HGEO(gg, wc, cx + sx * L / 2 - (sx > 0 ? 0.25 : 0), by, cz, 0, Math.PI / 2, 0, 1, 1, 1);
 }
 const BRICK = 0x8a5444, STONE = 0x8f867a, WOOD = 0x8a6b4a;
+let HPAL = { wall: 0xe9e1cf, wall2: 0xd9c8a8, roof: 0x5b4036, door: 0x8c2f2a, trim: 0xf0efe8, mat: 'siding' };
+const glassPane = (x, y, z, face, w, h2) => { const sg = face[0] === '+' ? 1 : -1; if (face === '+z' || face === '-z') HWN(w, h2, 0.14, x, y, z + sg * 0.03); else HWN(0.14, h2, w, x + sg * 0.03, y, z); };
+const HH = typeof NH_HOUSES === 'function' ? NH_HOUSES({ THREE, scene, mulberry, renderer, pal: () => HPAL, glass: glassPane, glass2: glassPane }) : null;
 const MODELS = [
   { name: 'Ranch', ext: [-9, 16, -4.5, 4.5], park: 12.5, build() {
     HB(18, 3, 9, 0, 1.5, 0, wallC); HGABLE(0, 3, 0, 18, 9, 2.2, roofC, wallC);
@@ -3606,7 +3617,11 @@ const SHOUSES = [];
     HBASE = new THREE.Matrix4().compose(new THREE.Vector3(h.ox, 0, h.oz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(1, 1, 1));
     wallC = spick(WALLS); wallC2 = spick(WALLS); roofC = spick(ROOFS); doorC = spick(DOORS); trimC = SR() < 0.6 ? 0xf0efe8 : 0xd8d2c0;
     const r = SR(); HWCUR = HWG[r < 0.6 ? 0 : r < 0.8 ? 1 : 2];
-    M.build();
+    if (HH && HH.models[M.name]) {
+      const mr = SR();
+      HPAL = { wall: wallC, wall2: wallC2, roof: roofC, door: doorC, trim: trimC, mat: mr < 0.5 ? 'siding' : mr < 0.72 ? 'brick' : mr < 0.88 ? 'stucco' : 'stone' };
+      HH.setFrame(HBASE); HH.models[M.name]();
+    } else M.build();
     const len = Math.max(3.5, h.S - 7.4);
     HB(3.4, 0.08, len, M.park, 0.04, z1 + len / 2, 0x9d9a94);
     const dx = Math.cos(ry), dz = -Math.sin(ry), fx = Math.sin(ry), fz = Math.cos(ry);
@@ -3627,6 +3642,7 @@ const SHOUSES = [];
     for (let k = 0; k < 2; k++) if (SR() < 0.75) treeSpots.push({ x: h.cx + h.nx * srnd(8, 15) + h.p.tx * srnd(-13, 13), z: h.cz + h.nz * srnd(8, 15) + h.p.tz * srnd(-13, 13), solid: false });
   }
   HBASE = new THREE.Matrix4();
+  if (HH) HH.finish();
   // street lamps every ~44 m, alternating sides
   const lampHeads = [], SUBL = [];
   SROADS.forEach(r => { let side = 1; for (let s = 22; s < r.rs.L - 10; s += 44) { let i = 0; while (i < r.rs.pts.length - 1 && r.rs.pts[i].s < s) i++; const p = r.rs.pts[i], x = p.x - p.tz * side * 6.3, z = p.z + p.tx * side * 6.3, sd = side; side = -side; SUBL.push({ x, z, r: Math.atan2(p.tz * sd, -p.tx * sd), sx: 0.92, sy: 0.92, sz: 0.92 }); } });
@@ -5489,7 +5505,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds };
+if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
