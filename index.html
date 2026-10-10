@@ -224,6 +224,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/models/human.js"></script>
 <script src="assets/models/weapons.js"></script>
 <script src="assets/js/human.js"></script>
+<script src="assets/js/chunker.js"></script>
 <script src="assets/js/buildings.js"></script>
 <script src="assets/js/houses.js"></script>
 <script src="assets/js/atmosphere.js"></script>
@@ -286,20 +287,42 @@ const NHM = (() => {
     else if (leaf) sway(mat, 9.0, 0.22);
     return mat;
   };
+  const CELL = 150;
+  function cells(items) {
+    const map = new Map();
+    for (const it of items) {
+      const k = Math.floor(it.x / CELL) + ',' + Math.floor(it.z / CELL);
+      let e = map.get(k);
+      if (!e) { e = { cx: (Math.floor(it.x / CELL) + 0.5) * CELL, cz: (Math.floor(it.z / CELL) + 0.5) * CELL, list: [] }; map.set(k, e); }
+      e.list.push(it);
+    }
+    return [...map.values()];
+  }
+  function cullSphere(geo) {
+    if (!geo.boundingSphere) geo.computeBoundingSphere();
+    if (!geo.userData.cullR) { geo.userData.cullR = 1; geo.boundingSphere.center.set(0, 0, 0); geo.boundingSphere.radius = CELL * 0.72 + 60; }
+  }
+  function chunkMeshes(parent, part, items, fill, made) {
+    cullSphere(part.geometry);
+    for (const e of cells(items)) {
+      const im = new THREE.InstancedMesh(part.geometry, part.material, e.list.length);
+      im.frustumCulled = true; im.position.set(e.cx, 0, e.cz); im.updateMatrix(); im.matrixAutoUpdate = false;
+      e.list.forEach((it, i) => fill(im, it, i, e));
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      parent.add(im); made.push(im);
+    }
+  }
   function place(parent, root, buckets) {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), made = [];
     for (const name in buckets) {
       const items = buckets[name];
       if (!items.length) continue;
       for (const part of parts(root, name)) {
-        const im = new THREE.InstancedMesh(part.geometry, part.material, items.length);
-        im.frustumCulled = false;
-        items.forEach((it, i) => {
-          q.setFromAxisAngle(up, it.r || 0); p.set(it.x, it.y || 0, it.z); s.set(it.sx, it.sy, it.sz);
+        chunkMeshes(parent, part, items, (im, it, i, e) => {
+          q.setFromAxisAngle(up, it.r || 0); p.set(it.x - e.cx, it.y || 0, it.z - e.cz); s.set(it.sx, it.sy, it.sz);
           m.compose(p, q, s).multiply(part.matrix); im.setMatrixAt(i, m);
-        });
-        im.instanceMatrix.needsUpdate = true;
-        parent.add(im); made.push(im);
+        }, made);
       }
     }
     return made;
@@ -347,16 +370,11 @@ const NHM = (() => {
       const items = groups[vi];
       if (!items.length) return;
       for (const part of parts(root, name)) {
-        const im = new THREE.InstancedMesh(part.geometry, part.material, items.length);
-        im.frustumCulled = false;
-        items.forEach((it, i) => {
-          q.setFromAxisAngle(up, it.r || 0); p.set(it.x, it.y || 0, it.z); s.set(it.s, it.s, it.s);
+        chunkMeshes(parent, part, items, (im, it, i, e) => {
+          q.setFromAxisAngle(up, it.r || 0); p.set(it.x - e.cx, it.y || 0, it.z - e.cz); s.set(it.s, it.s, it.s);
           m.compose(p, q, s).multiply(part.matrix); im.setMatrixAt(i, m);
           if (part.leaf && tints) { c.setHex(tints[(i * 7 + vi * 3) % tints.length]).multiplyScalar(0.88 + ((i * 37 + vi * 11) % 25) / 100); im.setColorAt(i, c); }
-        });
-        im.instanceMatrix.needsUpdate = true;
-        if (im.instanceColor) im.instanceColor.needsUpdate = true;
-        parent.add(im); made.push(im);
+        }, made);
       }
     });
     return made;

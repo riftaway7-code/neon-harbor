@@ -237,14 +237,8 @@ window.NH_HOUSES = function (env) {
   function finish() {
     ensure();
     for (const key in ACC) {
-      const a = ACC[key], g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a.p), 3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(a.n), 3));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(a.u), 2));
-      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(a.c), 3));
-      g.setIndex(new THREE.BufferAttribute(new Uint32Array(a.i), 1));
-      const m = new THREE.Mesh(g, MATS[key] || MATS.trim);
-      m.frustumCulled = false; scene.add(m);
+      const a = ACC[key];
+      NH_CHUNK.split({ position: { array: a.p, size: 3 }, normal: { array: a.n, size: 3 }, uv: { array: a.u, size: 2 }, color: { array: a.c, size: 3 } }, a.i, MATS[key] || MATS.trim, scene);
     }
   }
 
