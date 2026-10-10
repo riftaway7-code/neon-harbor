@@ -251,7 +251,15 @@ const NHM = (() => {
   const convert = (m, geo) => {
     const leaf = m.name === 'leaf', grass = m.name === 'grass', map = m.map;
     if (map) map.encoding = THREE.LinearEncoding;
-    const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xd6e8c4 : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
+    const mat = new THREE.MeshLambertMaterial({ map, color: leaf ? 0xc2dcae : grass ? 0xffffff : 0x6e5f52, vertexColors: !!(geo && geo.attributes.color), side: leaf || grass ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.5 : 0, transparent: false });
+    if (grass && geo && geo.attributes.color && !geo.userData.lifted) {
+      const c = geo.attributes.color, arr = c.array, sc = arr instanceof Uint8Array ? 255 : arr instanceof Uint16Array ? 65535 : 1, step = c.itemSize;
+      for (let i = 0; i < c.count; i++) for (let k = 0; k < 3; k++) {
+        const o = i * step + k, v = Math.min(1, Math.pow(arr[o] / sc, 0.4545) * 1.2);
+        arr[o] = sc === 1 ? v : Math.round(v * sc);
+      }
+      c.needsUpdate = true; geo.userData.lifted = true;
+    }
     if (grass) sway(mat, 0.7, 0.16);
     else if (leaf) sway(mat, 9.0, 0.22);
     return mat;
@@ -466,7 +474,6 @@ for (let bi = -R; bi < R; bi++) for (let bj = -R; bj < R; bj++) {
   scene.userData.beam = pivot;
 })();
 
-const grassPatches = [];
 // ---- Trees ----
 (function placeTrees() {
   const n = trees.length;
@@ -484,22 +491,6 @@ const grassPatches = [];
     trunk.visible = false; crown.visible = false;
     const list = trees.map(t => ({ x: t[0], z: t[1], s: t[2] * 0.9, r: Math.abs(Math.sin(t[0] * 12.9898 + t[1] * 78.233)) * TAU }));
     NHM.instance(scene, root, ['tree_oak', 'tree_oak_b', 'tree_oak_c'], list, [0xffffff, 0xf2ffd8, 0xffeeb8, 0xdfffe0]);
-  });
-  const grassRng = mulberry(90210);
-  NHM.load('grass').then(root => {
-    if (!root) return;
-    for (const b of blocks) {
-      if (!b.park) continue;
-      const list = [], n = b.bi === 0 && b.bj === 0 ? 1500 : 1300;
-      for (let k = 0; k < n; k++) {
-        const x = b.cx + (grassRng() - 0.5) * 52, z = b.cz + (grassRng() - 0.5) * 52;
-        if (b.bi === 0 && b.bj === 0 && Math.hypot(x - b.cx, z - b.cz) < 7) continue;
-        list.push({ x, z, s: 0.8 + grassRng() * 0.9, r: grassRng() * TAU });
-      }
-      const g = new THREE.Group(); scene.add(g);
-      for (const im of NHM.instance(g, root, ['grass_short', 'grass_mid', 'grass_tall'], list, null)) im.userData.noShadow = true;
-      grassPatches.push({ g, x: b.cx, z: b.cz });
-    }
   });
 })();
 
@@ -2959,6 +2950,72 @@ const solidAt = (x, z, w, d, h) => solids.push({ x0: x - w / 2, x1: x + w / 2, z
   const pond = new THREE.Mesh(new THREE.CircleGeometry(22, 32).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x2f5f78, transparent: true, opacity: 0.92, ...po(-2, -2) })); pond.position.set(480, 0.04, -130); scene.add(pond);
 })();
 
+
+const GRASS = (() => {
+  const TILE = 40, tiles = new Map(), zones = [];
+  let root = null, loading = false, acc = 0;
+  const rng = mulberry(90210);
+  function inside(x, z) {
+    for (const zn of zones) if (x > zn.x0 && x < zn.x1 && z > zn.z0 && z < zn.z1 && zn.mask(x, z)) return true;
+    return false;
+  }
+  function addZone(x0, z0, x1, z1, mask) { zones.push({ x0, z0, x1, z1, mask }); tiles.clear(); }
+  function build(tile, dense) {
+    const step = dense ? 1.05 : 2.2, list = [];
+    const r = mulberry((tile.i * 73856093) ^ (tile.j * 19349663) ^ (dense ? 83492791 : 1));
+    for (let x = tile.x0; x < tile.x0 + TILE; x += step) for (let z = tile.z0; z < tile.z0 + TILE; z += step) {
+      const px = x + r() * step, pz = z + r() * step;
+      if (!inside(px, pz)) continue;
+      list.push({ x: px, z: pz, s: dense ? 0.7 + r() * 0.7 : 1.3 + r() * 1.1, r: r() * TAU });
+    }
+    if (!list.length) return null;
+    const g = new THREE.Group(); scene.add(g);
+    for (const im of NHM.instance(g, root, ['grass_short', 'grass_mid', 'grass_tall'], list, null)) im.userData.noShadow = true;
+    return g;
+  }
+  function update(dt) {
+    acc -= dt; if (acc > 0) return;
+    acc = 0.3;
+    if (!root) {
+      if (!loading) { loading = true; NHM.load('grass').then(m => { root = m; acc = 0; }); }
+      return;
+    }
+    const cx = camera.position.x, cz = camera.position.z, far = 95, near = 30;
+    const i0 = Math.floor((cx - far) / TILE), i1 = Math.floor((cx + far) / TILE), j0 = Math.floor((cz - far) / TILE), j1 = Math.floor((cz + far) / TILE);
+    for (const t of tiles.values()) { if (t.a) t.a.visible = false; if (t.b) t.b.visible = false; }
+    let built = 0;
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const key = i + ',' + j;
+      let t = tiles.get(key);
+      if (!t) { t = { i, j, x0: i * TILE, z0: j * TILE, a: undefined, b: undefined }; tiles.set(key, t); }
+      const dx = Math.max(t.x0 - cx, 0, cx - (t.x0 + TILE)), dz = Math.max(t.z0 - cz, 0, cz - (t.z0 + TILE)), d = Math.hypot(dx, dz);
+      if (d > far) continue;
+      if (t.a === undefined && built < 3) { t.a = build(t, false); built++; }
+      if (t.a) t.a.visible = true;
+      if (d < near) {
+        if (t.b === undefined && built < 3) { t.b = build(t, true); built++; }
+        if (t.b) t.b.visible = true;
+      }
+    }
+  }
+  return { addZone, update };
+})();
+(function grassZones() {
+  for (const b of blocks) {
+    if (!b.park) continue;
+    const lh = b.bi === 0 && b.bj === 0;
+    GRASS.addZone(b.cx - 29.5, b.cz - 29.5, b.cx + 29.5, b.cz + 29.5, (x, z) => Math.abs(x - b.cx) > 1.9 && Math.abs(z - b.cz) > 1.9 && !(lh && Math.hypot(x - b.cx, z - b.cz) < 7));
+  }
+  GRASS.addZone(COUNTRY.x0 + 2, -798, COUNTRY.x0 + 650, -62, (x, z) => {
+    if (nearRoad(x, z, 3.5)) return false;
+    for (const f of FIELDS) if (Math.abs(x - f[0]) < f[2] / 2 + 1 && Math.abs(z - f[1]) < f[3] / 2 + 1) return false;
+    for (const a of FARM_AVOID) if (Math.hypot(x - a[0], z - a[1]) < a[2] + 3) return false;
+    if (Math.hypot(x - 480, z + 130) < 28) return false;
+    if (Math.abs(x - 737) < 33 && Math.abs(z + 262) < 4) return false;
+    return !pointInSolid(x, z, 0.1);
+  });
+})();
+
 // ---------------- scenery parts merged into one mesh ----------------
 const CP = [], CW = [];
 const cb = (w, h, d, x, y, z, c, rx, ry, rz) => CP.push({ g: UBOX, m: MT(x, y, z, rx, ry, rz, w, h, d), c });
@@ -5224,18 +5281,18 @@ function rtxResize(w, h) {
 }
 function rtxBuild() {
   if (RTX.composer) return true;
-  if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SAOPass || !THREE.UnrealBloomPass || !THREE.ShaderPass || !THREE.FXAAShader) return false;
+  if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SAOPass || !THREE.UnrealBloomPass || !THREE.WebGLMultisampleRenderTarget) return false;
   const w = window.innerWidth, h = window.innerHeight;
-  const comp = new THREE.EffectComposer(renderer);
+  const pr0 = renderer.getPixelRatio(), rt = new THREE.WebGLMultisampleRenderTarget(Math.floor(w * pr0), Math.floor(h * pr0), { format: THREE.RGBAFormat });
+  rt.samples = 4;
+  const comp = new THREE.EffectComposer(renderer, rt);
   comp.addPass(new THREE.RenderPass(scene, camera));
   const sao = new THREE.SAOPass(scene, camera, false, true);
   sao.params.saoBias = 0.6; sao.params.saoIntensity = 0.012; sao.params.saoScale = 18; sao.params.saoKernelRadius = 24; sao.params.saoBlurRadius = 6; sao.params.saoBlurStdDev = 3; sao.params.saoBlurDepthCutoff = 0.02;
   comp.addPass(sao);
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.55, 0.86);
   comp.addPass(bloom);
-  const fxaa = new THREE.ShaderPass(THREE.FXAAShader);
-  comp.addPass(fxaa);
-  RTX.composer = comp; RTX.sao = sao; RTX.bloom = bloom; RTX.fxaa = fxaa;
+  RTX.composer = comp; RTX.sao = sao; RTX.bloom = bloom; RTX.fxaa = null;
   rtxResize(w, h);
   return true;
 }
@@ -5254,7 +5311,7 @@ function rtxSetup(on) {
   renderer.shadowMap.enabled = on;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-  renderer.toneMappingExposure = 1.25;
+  renderer.toneMappingExposure = 0.95;
   sun.castShadow = on;
   if (on) {
     const sh = sun.shadow, cam = sh.camera;
@@ -5276,13 +5333,16 @@ function rtxFrame(dt) {
   sun.position.set(gx + sun.position.x, sun.position.y, gz + sun.position.z);
   sun.target.updateMatrixWorld();
 }
+const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
+if (DEVCAM) window.NHD = { scene, camera, GRASS, NHM, RTX };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state !== 'paused') update(dt);
   NHM.WIND.time.value = now / 1000; NHM.WIND.gust.value = 0.7 + 0.5 * (0.5 + 0.5 * Math.sin(now / 4200)) + ENV.rain * 0.8;
-  for (const gp of grassPatches) gp.g.visible = (gp.x - camera.position.x) ** 2 + (gp.z - camera.position.z) ** 2 < 210 * 210;
+  GRASS.update(dt);
+  if (DEVCAM) { camera.position.set(DEVCAM[0], DEVCAM[1], DEVCAM[2]); camera.lookAt(DEVCAM[3], DEVCAM[4], DEVCAM[5]); }
   if (RTX.on) { if (state !== 'paused') rtxFrame(dt); RTX.composer.render(dt); } else renderer.render(scene, camera);
 }
 function setPaused(p) {
