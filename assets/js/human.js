@@ -94,6 +94,24 @@ window.NH_HUMAN = function (env) {
     return false;
   }
 
+  function clusterIndex(P, I, list, nv) {
+    const item = new Uint8Array(nv), cell = 0.06;
+    let vo = 0;
+    list.forEach((it, k) => { const n = T[it.name].g.attributes.position.count; item.fill(k, vo, vo + n); vo += n; });
+    const rep = new Int32Array(nv).fill(-1), seen = new Map();
+    for (let v = 0; v < nv; v++) {
+      const key = ((Math.floor((P[v * 3] + 1) / cell) * 64 + Math.floor((P[v * 3 + 1] + 0.2) / cell)) * 64 + Math.floor((P[v * 3 + 2] + 1) / cell)) * 32 + (item[v] & 31);
+      const r = seen.get(key);
+      if (r === undefined) { seen.set(key, v); rep[v] = v; } else rep[v] = r;
+    }
+    const out = [];
+    for (let f = 0; f < I.length; f += 3) {
+      const a = rep[I[f]], b = rep[I[f + 1]], c = rep[I[f + 2]];
+      if (a !== b && b !== c && a !== c) out.push(a, b, c);
+    }
+    return new Uint32Array(out);
+  }
+
   function merge(pl, o) {
     let nv = 0, ni = 0;
     for (const it of pl.list) { const g = T[it.name].g; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
@@ -124,6 +142,7 @@ window.NH_HUMAN = function (env) {
       vo += n;
     }
     const geo = new THREE.BufferGeometry();
+    geo.userData.lodIndex = clusterIndex(P, I.subarray(0, io), pl.list, nv);
     geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(C, 3));
@@ -147,10 +166,20 @@ window.NH_HUMAN = function (env) {
     }
     const pl = plan(o, full), geo = merge(pl, o);
     const mesh = new THREE.SkinnedMesh(geo, MAT);
-    mesh.frustumCulled = false;
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.5);
     mesh.add(bones.hips);
-    mesh.bind(new THREE.Skeleton(arr, inv), new THREE.Matrix4());
+    const skel = new THREE.Skeleton(arr, inv);
+    mesh.bind(skel, new THREE.Matrix4());
     root.add(mesh);
+    const lg = new THREE.BufferGeometry();
+    for (const k in geo.attributes) lg.setAttribute(k, geo.attributes[k]);
+    lg.setIndex(new THREE.BufferAttribute(geo.userData.lodIndex, 1));
+    lg.boundingSphere = geo.boundingSphere;
+    const lod = new THREE.SkinnedMesh(lg, MAT);
+    lod.bind(skel, new THREE.Matrix4());
+    lod.visible = false;
+    root.add(lod);
+    rig.lod = lod;
     rig.body = mesh; rig.upper = bones.upper; rig.hips = bones.hips; rig.neck = bones.neck; rig.head = bones.head;
     for (const k of ['L', 'R']) {
       rig['arm' + k] = bones['arm' + k]; rig['elbow' + k] = bones['elbow' + k]; rig['hand' + k] = bones['hand' + k];
@@ -165,6 +194,11 @@ window.NH_HUMAN = function (env) {
     rig.hv = true; rig.vs = 0; rig.airK = 0;
     if (env.onRebuild) env.onRebuild(rig);
     return rig;
+  }
+
+  function setLod(rig, far) {
+    if (!rig.lod || rig.lodFar === far) return;
+    rig.lodFar = far; rig.lod.visible = far; rig.body.visible = !far;
   }
 
   const KEYS = {
@@ -248,5 +282,5 @@ window.NH_HUMAN = function (env) {
     h.root.position.set(rootX, rootY, 0);
   }
 
-  return { init, fill, pose, get ready() { return !!T; } };
+  return { init, fill, pose, setLod, get ready() { return !!T; } };
 };

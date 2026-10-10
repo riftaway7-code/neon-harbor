@@ -11,6 +11,8 @@ window.NH_REAL = (function () {
                  mix(mix(nhH(i + vec3(0.0, 0.0, 1.0)), nhH(i + vec3(1.0, 0.0, 1.0)), f.x), mix(nhH(i + vec3(0.0, 1.0, 1.0)), nhH(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
     }`;
 
+  const LITE = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+
   const FRAG_PARS = `
     varying vec3 vNHW;
     varying vec3 vNHN;
@@ -33,6 +35,17 @@ window.NH_REAL = (function () {
       diffuseColor.rgb *= 1.0 - uNH[1] * side * smoothstep(0.55, 0.92, streak) * 0.2 * smoothstep(1.0, 12.0, wp.y);
       nhPuddle = smoothstep(0.46, 0.56, nhN(vec3(wp.x * 0.33, 0.0, wp.z * 0.33))) * smoothstep(0.8, 0.96, nhUp) * smoothstep(1.2, 0.2, wp.y);
       diffuseColor.rgb *= 1.0 - uNH[0] * (0.1 + 0.12 * nhPuddle) * (0.35 + 0.65 * nhUp);
+    }
+    #endif`;
+
+  const ALBEDO_LITE = `
+    float nhPuddle = 0.0, nhUp = clamp(vNHN.y, 0.0, 1.0);
+    #ifndef USE_SKINNING
+    {
+      vec3 wp = vNHW;
+      float side = 1.0 - nhUp;
+      diffuseColor.rgb *= 1.0 - uNH[1] * 0.3 * smoothstep(1.4, 0.0, wp.y) * side;
+      diffuseColor.rgb *= 1.0 - uNH[0] * 0.12 * (0.35 + 0.65 * nhUp);
     }
     #endif`;
 
@@ -86,7 +99,7 @@ window.NH_REAL = (function () {
         }`);
     lib.fragmentShader = lib.fragmentShader
       .replace('#include <common>', '#include <common>' + FRAG_PARS)
-      .replace('#include <color_fragment>', '#include <color_fragment>\n' + ALBEDO)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n' + (LITE ? ALBEDO_LITE : ALBEDO))
       .replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );', SHEEN + '\n\tgl_FragColor = vec4( outgoingLight, diffuseColor.a );');
   }
 

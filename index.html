@@ -302,15 +302,47 @@ const NHM = (() => {
     if (!geo.boundingSphere) geo.computeBoundingSphere();
     if (!geo.userData.cullR) { geo.userData.cullR = 1; geo.boundingSphere.center.set(0, 0, 0); geo.boundingSphere.radius = CELL * 0.72 + 60; }
   }
+  const CHUNKS = [];
+  function lodOf(part) {
+    const g = part.geometry;
+    if (g.userData.lod !== undefined) return g.userData.lod;
+    let out = null;
+    if (part.leaf && g.index && g.index.count > 2400) {
+      const src = g.index.array, keep = [];
+      for (let t = 0, q = 0; t + 5 < src.length; t += 6, q++) if (q % 3 === 0) for (let j = 0; j < 6; j++) keep.push(src[t + j]);
+      out = new THREE.BufferGeometry();
+      for (const k in g.attributes) out.setAttribute(k, g.attributes[k]);
+      out.setIndex(new THREE.BufferAttribute(g.index.array instanceof Uint32Array ? new Uint32Array(keep) : new Uint16Array(keep), 1));
+      out.boundingSphere = g.boundingSphere;
+    }
+    g.userData.lod = out;
+    return out;
+  }
+  function cullDist(x, z, R, lodR) {
+    const rr = (R + CELL * 0.72) * (R + CELL * 0.72), ll = (lodR + CELL * 0.35) * (lodR + CELL * 0.35);
+    for (const im of CHUNKS) {
+      const dx = im.position.x - x, dz = im.position.z - z, d2 = dx * dx + dz * dz, on = R <= 0 || d2 < rr, near = d2 < ll;
+      im.visible = on && (near || !im.userData.lod);
+      if (im.userData.lod) im.userData.lod.visible = on && !near;
+    }
+  }
   function chunkMeshes(parent, part, items, fill, made) {
     cullSphere(part.geometry);
+    const lg = lodOf(part);
     for (const e of cells(items)) {
       const im = new THREE.InstancedMesh(part.geometry, part.material, e.list.length);
       im.frustumCulled = true; im.position.set(e.cx, 0, e.cz); im.updateMatrix(); im.matrixAutoUpdate = false;
       e.list.forEach((it, i) => fill(im, it, i, e));
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
-      parent.add(im); made.push(im);
+      parent.add(im); made.push(im); CHUNKS.push(im);
+      if (lg) {
+        const lm = new THREE.InstancedMesh(lg, part.material, e.list.length);
+        lm.instanceMatrix = im.instanceMatrix; lm.instanceColor = im.instanceColor;
+        lm.frustumCulled = true; lm.position.copy(im.position); lm.updateMatrix(); lm.matrixAutoUpdate = false; lm.visible = false;
+        if (im.userData.noShadow) lm.userData.noShadow = true;
+        parent.add(lm); made.push(lm); im.userData.lod = lm;
+      }
     }
   }
   function place(parent, root, buckets) {
@@ -379,7 +411,7 @@ const NHM = (() => {
     });
     return made;
   }
-  return { load, instance, place, lamps, WIND };
+  return { load, instance, place, lamps, WIND, cullDist };
 })();
 const VEG = (() => {
   const ang = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233)) * TAU;
@@ -1710,6 +1742,7 @@ function updatePeds(dt) {
   for (const p of peds) {
     const pdx = p.x - rp.x, pdz = p.z - rp.z, pd2 = pdx * pdx + pdz * pdz, far = pd2 > 8100;
     p.g.visible = !far;
+    if (HUM && p.rig.hv) HUM.setLod(p.rig, pd2 > 625);
     if (p.state === 'walk') {
       p.s += p.dir * p.speed * dt; if (Math.random() < dt * 0.04) p.dir = -p.dir;
       const q = perim(p.b.cx, p.b.cz, p.s, p.off); p.x = q[0]; p.z = q[1];
@@ -5811,7 +5844,7 @@ function rtxSetup(on) {
   sun.castShadow = on;
   if (on) {
     const sh = sun.shadow, cam = sh.camera;
-    sh.mapSize.set(2048, 2048); cam.left = -80; cam.right = 80; cam.top = 80; cam.bottom = -80; cam.near = 1; cam.far = 520;
+    sh.mapSize.set(matchMedia('(pointer:coarse)').matches ? 1024 : 2048, matchMedia('(pointer:coarse)').matches ? 1024 : 2048); cam.left = -80; cam.right = 80; cam.top = 80; cam.bottom = -80; cam.near = 1; cam.far = 520;
     sh.bias = -0.0006; sh.normalBias = 0.35;
     if (sh.map) { sh.map.dispose(); sh.map = null; }
     scene.add(sun.target);
@@ -5837,6 +5870,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state !== 'paused') update(dt);
   NHM.WIND.time.value = now / 1000; NHM.WIND.gust.value = 0.7 + 0.5 * (0.5 + 0.5 * Math.sin(now / 4200)) + ENV.rain * 0.8;
+  { const touch = matchMedia('(pointer:coarse)').matches, base = { low: 170, med: 250, high: 340, rtx: 420 }[SYS.quality] || 340; NHM.cullDist(camera.position.x, camera.position.z, camera.far > 1000 ? 0 : base * (touch ? 0.8 : 1), touch ? 55 : 85); }
   GRASS.update(dt);
   if (DEVCAM) { camera.position.set(DEVCAM[0], DEVCAM[1], DEVCAM[2]); camera.lookAt(DEVCAM[3], DEVCAM[4], DEVCAM[5]); }
   if (RTX.on) { if (state !== 'paused') rtxFrame(dt); RTX.grade.uniforms.uTime.value = now / 1000; RTX.grade.uniforms.uWet.value = ENV.rain; RTX.composer.render(dt); } else renderer.render(scene, camera);
