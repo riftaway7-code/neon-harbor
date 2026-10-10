@@ -422,8 +422,8 @@ def make_clothes(body):
         return bot < c.z < top
 
     out["jacket"] = shell(body, "jacket", jk, lambda co, n: 0.017 + 0.012 * (1 - smoothstep(0.9, 1.05, co.z)) + 0.016 * smoothstep(1.44, 1.52, co.z), 0)
-    out["long"] = shell(body, "long", jk, lambda co, n: 0.008 + 0.006 * (1 - smoothstep(0.9, 1.05, co.z)), 0)
-    out["tee"] = shell(body, "tee", tee, lambda co, n: 0.009 + 0.006 * (1 - smoothstep(0.92, 1.05, co.z)), 0)
+    out["long"] = shell(body, "long", jk, lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0)
+    out["tee"] = shell(body, "tee", tee, lambda co, n: 0.01 + 0.014 * (1 - smoothstep(0.9, 1.12, co.z)), 0)
     out["pants"] = shell(body, "pants", lambda b, c: pants(b, c), lambda co, n: 0.011 + 0.008 * smoothstep(0.5, 0.95, co.z) - 0.004 * smoothstep(0.1, 0.25, 0.25 - co.z), 0)
     out["shorts"] = shell(body, "shorts", lambda b, c: pants(b, c, 0.985, 0.58), lambda co, n: 0.012 + 0.008 * smoothstep(0.5, 0.95, co.z), 0)
     out["shoes"] = shell(body, "shoes", lambda b, c: c.z < 0.125 and not any(x in ARMB or x in BAD_TOP for x in b), lambda co, n: 0.012 + 0.012 * smoothstep(0.0, 0.05, 0.05 - co.z), 0)
