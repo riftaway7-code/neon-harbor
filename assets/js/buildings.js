@@ -6,6 +6,7 @@ window.NH_BUILDINGS = function (env) {
   const rr = (a, b) => a + R() * (b - a);
   const pick = a => a[Math.floor(R() * a.length)];
   const NEON = [0xff4f8b, 0x38d6e8, 0xffb02e, 0x7dff9a, 0xb07dff];
+  const hex = c => [(c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255];
 
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const toTex = c => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; return t; };
@@ -556,6 +557,64 @@ window.NH_BUILDINGS = function (env) {
     if (R() < 0.5) neonSign(base, rr(6, 11), w * 0.5);
   }
 
+  function addTyped(x, z, w, d, h, type, o) {
+    ensureMats(); o = o || {};
+    solids.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, h: h + 1 });
+    const COLORWAYS = [[1, 1, 1], [0.86, 0.9, 1.05], [1.1, 0.95, 0.8], [0.9, 1.0, 0.88], [0.8, 0.8, 0.84], [1.15, 0.88, 0.75]];
+    const cw = o.tint || pick(COLORWAYS), trimCol = pick([[0.72, 0.7, 0.66], [0.66, 0.66, 0.68], [0.78, 0.74, 0.66]]);
+    const base = rectPoly(x, z, w, d), face = o.face === undefined ? 1 : o.face;
+    if (type === 'apartment') {
+      const style = o.style || pick(['brick', 'modern', 'deco', 'concrete']), tint = [cw[0], cw[1], cw[2]];
+      const info = body(base, 0, h, { style, tint, cornice: true, trimCol, ledge: STYLES[style].ledge });
+      roofTop(base, h, { parapet: true, trimCol });
+      box('trim', x + w * 0.42, h + 1.4, z - face * d * 0.1, 3.6, 2.8, 3.6, 0, [0.72, 0.7, 0.66]);
+      roofProps(x - w / 2 + 1, z - d / 2 + 1, x + w / 2 - 1, z + d / 2 - 1, h, [x + w * 0.42 - 2.4, z - face * d * 0.1 - 2.4, x + w * 0.42 + 2.4, z - face * d * 0.1 + 2.4], { shed: false, tower: R() < 0.3 });
+      if (o.balcony !== false) {
+        const nb = Math.max(1, Math.round(w / BW));
+        for (let k = 2; k < info.nf; k++) for (let bb = 1; bb < nb - 1; bb += 2) { if (R() < 0.35) { const t = ((bb + 0.5) / nb - 0.5) * w; prop('balcony', x + t, k * info.fh + 0.1, z + face * (d / 2), face > 0 ? 0 : Math.PI, 1, 1, 1); } }
+      }
+      for (let i = 0; i < 6; i++) { const bb = Math.floor(R() * Math.max(1, Math.round(w / BW))), k = 1 + Math.floor(R() * Math.max(1, info.nf - 1)); prop('window_ac', x + ((bb + 0.5) / Math.max(1, Math.round(w / BW)) - 0.5) * w, k * info.fh + 0.72, z - face * (d / 2) - face * 0.05, face > 0 ? Math.PI : 0, 1, 1, 1); }
+      for (let t = -w / 2 + 6; t < w / 2 - 3; t += 8) prop('street_planter', x + t, 0, z + face * (d / 2 + 0.9), face > 0 ? 0 : Math.PI, 1, 1, 1);
+      return;
+    }
+    if (type === 'town') {
+      const brickTint = o.brick ? hex(o.brick) : [1, 0.85, 0.78], doorC = o.door || 0x8c2f2a, tint = brickTint;
+      const info = body(base, 0, h, { style: 'brick', tint, cornice: true, trimCol: [0.9, 0.88, 0.84], ledge: 1 });
+      roofTop(base, h, { parapet: true, trimCol: [0.9, 0.88, 0.84] });
+      const fz = z + face * d / 2, rz = z - face * d / 2, dx0 = x - w * 0.2;
+      box('trim', dx0, 0.18, fz + face * 0.9, 1.9, 0.36, 1.6, 0, [0.74, 0.72, 0.68]);
+      box('trim', dx0, 1.2, fz + face * 0.04, 1.0, 2.2, 0.12, 0, hex(doorC));
+      box('trim', dx0, 2.6, fz + face * 0.5, 1.6, 0.14, 1.0, 0, [0.22, 0.23, 0.26]);
+      if (o.bay) { box('trim', x, 5.4, fz + face * 0.5, 2.6, 3.1, 1.0, 0, tint); box('trim', x, 7.05, fz + face * 0.5, 2.8, 0.18, 1.2, 0, [0.9, 0.88, 0.84]); }
+      if (o.deck) { box('trim', x, h + 1.0, fz - face * 0.25, w - 0.6, 0.9, 0.06, 0, [0.22, 0.23, 0.26]); }
+      for (let k = 0; k < 3; k++) { if (R() < 0.6) prop('window_ac', x + (R() - 0.5) * w * 0.6, 3.2 + k * 3.1 + 0.72, fz + face * 0.05, face > 0 ? 0 : Math.PI, 1, 1, 1); }
+      return;
+    }
+    if (type === 'mall' || type === 'bigbox' || type === 'strip') {
+      const gh = type === 'strip' ? 4.2 : type === 'bigbox' ? 6 : 5.5;
+      ground(base, gh, type === 'bigbox' ? 1 : (o.shop === undefined ? 0 : o.shop), [1, 1, 1]);
+      const style = type === 'mall' ? 'concrete' : 'modern', tint = [cw[0], cw[1], cw[2]];
+      body(base, gh, h, { style, tint, cornice: true, trimCol, ledge: 0 });
+      roofTop(base, h, { parapet: true, trimCol });
+      box('trim', x, gh + 0.16, z, w + 0.4, 0.3, d + 0.4, 0, [0.35, 0.36, 0.4]);
+      const n = Math.max(2, Math.floor(w * d / (type === 'strip' ? 420 : 380)));
+      for (let i = 0; i < n; i++) roofProps(x - w / 2 + 1.5, z - d / 2 + 1.5, x + w / 2 - 1.5, z + d / 2 - 1.5, h, null, { shed: i === 0, tower: false });
+      return;
+    }
+    if (type === 'garage') {
+      const lv = o.levels || 4, fh = 3.6;
+      for (let l = 0; l <= lv; l++) box('roof', x, l * fh + 0.25, z, w, 0.5, d, 0, [0.6, 0.62, 0.65]);
+      for (let i = 0; i <= 6; i++) for (const zz of [z - d / 2 + 0.8, z + d / 2 - 0.8]) box('trim', x - w / 2 + 0.8 + i * (w - 1.6) / 6, lv * fh / 2, zz, 0.9, lv * fh, 0.9, 0, [0.55, 0.56, 0.6]);
+      for (let i = 0; i <= 5; i++) for (const xx of [x - w / 2 + 0.8, x + w / 2 - 0.8]) box('trim', xx, lv * fh / 2, z - d / 2 + 0.8 + i * (d - 1.6) / 5, 0.9, lv * fh, 0.9, 0, [0.55, 0.56, 0.6]);
+      for (let l = 1; l <= lv; l++) {
+        for (const zz of [z - d / 2 + 0.2, z + d / 2 - 0.2]) box('trim', x, l * fh + 0.95, zz, w, 1.0, 0.4, 0, [0.7, 0.72, 0.75]);
+        for (const xx of [x - w / 2 + 0.2, x + w / 2 - 0.2]) box('trim', xx, l * fh + 0.95, z, 0.4, 1.0, d, 0, [0.7, 0.72, 0.75]);
+      }
+      box('trim', x, lv * fh + 1.0, z, 6, 2.2, 6, 0, [0.6, 0.62, 0.65]);
+      return;
+    }
+  }
+
   function finish() {
     for (const key in ACC) {
       const a = ACC[key], g = new THREE.BufferGeometry();
@@ -568,9 +627,12 @@ window.NH_BUILDINGS = function (env) {
       const m = new THREE.Mesh(g, mat);
       m.frustumCulled = false;
       scene.add(m);
+      delete ACC[key];
     }
-    NHM.load('city_props').then(root => { if (root) NHM.place(scene, root, PROPS); });
+    const snap = {};
+    for (const k in PROPS) { snap[k] = PROPS[k]; delete PROPS[k]; }
+    NHM.load('city_props').then(root => { if (root) NHM.place(scene, root, snap); });
   }
 
-  return { add, finish };
+  return { add, addTyped, finish };
 };

@@ -4926,11 +4926,14 @@ const STUCCO = [0xd9c8a8, 0xe3ddd0, 0xb9c4cf, 0xc9b28a, 0xd6b9a0, 0xa9b8a0, 0xc8
 const SGTOW = [];                                                                                      // footprints for the map
 function sgApt(cx, cz, w, d, floors, wallC, o) {
   o = o || {}; const fh = o.fh || 3.1, h = floors * fh, bs = o.bs || 1;
-  sgb(w, h, d, cx, h / 2, cz, wallC); sgb(w + 0.6, 0.4, d + 0.6, cx, h + 0.2, cz, o.trim || 0xe8e6e0);
-  for (let i = 0; i < 3; i++) sgb(sgr(2, 3.4), sgr(1.2, 1.8), sgr(2, 3), cx + sgr(-w * 0.35, w * 0.35), h + 0.4 + 0.7, cz + sgr(-d * 0.25, d * 0.25), 0x8a8e96);
-  sgb(w + 0.2, 0.5, 0.5, cx, h - 0.1, cz + bs * (d / 2 + 0.15), o.trim || 0xe8e6e0);
-  sgFacade(cx, cz, w, d, 0, floors, fh, 'SNEW', { bay: o.bay || 3.6, skip: 0.1, f0: 0 });
-  if (o.balc !== false) for (let f = 1; f < floors; f++) for (let x = -w / 2 + 5; x < w / 2 - 2; x += 7.2) { sgb(3.2, 0.16, 1.4, cx + x, f * fh + 0.08, cz + bs * (d / 2 + 0.7), 0xc9c4b8); sgb(3.2, 0.95, 0.06, cx + x, f * fh + 0.62, cz + bs * (d / 2 + 1.35), 0x3a3d46); }
+  if (CB) CB.addTyped(cx + SGDX, cz + SGDZ, w, d, h, 'apartment', { face: bs, balcony: o.balc !== false });
+  else {
+    sgb(w, h, d, cx, h / 2, cz, wallC); sgb(w + 0.6, 0.4, d + 0.6, cx, h + 0.2, cz, o.trim || 0xe8e6e0);
+    for (let i = 0; i < 3; i++) sgb(sgr(2, 3.4), sgr(1.2, 1.8), sgr(2, 3), cx + sgr(-w * 0.35, w * 0.35), h + 0.4 + 0.7, cz + sgr(-d * 0.25, d * 0.25), 0x8a8e96);
+    sgb(w + 0.2, 0.5, 0.5, cx, h - 0.1, cz + bs * (d / 2 + 0.15), o.trim || 0xe8e6e0);
+    sgFacade(cx, cz, w, d, 0, floors, fh, 'SNEW', { bay: o.bay || 3.6, skip: 0.1, f0: 0 });
+    if (o.balc !== false) for (let f = 1; f < floors; f++) for (let x = -w / 2 + 5; x < w / 2 - 2; x += 7.2) { sgb(3.2, 0.16, 1.4, cx + x, f * fh + 0.08, cz + bs * (d / 2 + 0.7), 0xc9c4b8); sgb(3.2, 0.95, 0.06, cx + x, f * fh + 0.62, cz + bs * (d / 2 + 1.35), 0x3a3d46); }
+  }
   sgb(4.6, 0.22, 2.6, cx, 3.3, cz + bs * (d / 2 + 1.3), 0x3a3d46); sgb(2.2, 2.6, 0.18, cx, 1.3, cz + bs * (d / 2 + 0.05), 0x2b3a4e);
   sgSolid(cx - w / 2, cx + w / 2, cz - d / 2, cz + d / 2, h + 1);
   SGTOW.push([cx - w / 2, cz - d / 2, w, d, '#c8c0d0']);
@@ -4938,6 +4941,7 @@ function sgApt(cx, cz, w, d, floors, wallC, o) {
 // one townhouse: face = +1 puts its front on the south side, -1 on the north
 function sgTown(x0, z0, w, d, h, face, brick, doorC, o) {
   const cx = x0 + w / 2, cz = z0 + d / 2, fz = cz + face * d / 2, rz = cz - face * d / 2;
+  if (CB) { CB.addTyped(cx + SGDX, cz + SGDZ, w, d, h, 'town', { face, brick, door: doorC, bay: o && o.bay, deck: o && o.deck }); return; }
   sgb(w, h, d, cx, h / 2, cz, brick); sgb(w + 0.15, 0.35, d + 0.15, cx, h + 0.17, cz, 0xe4e1da); sgb(w - 0.4, 0.5, 0.18, cx, h + 0.55, fz - face * 0.2, brick);
   sgb(1.0, 2.1, 0.14, cx - w * 0.2, 1.05, fz + face * 0.06, doorC); sgb(1.9, 0.34, 1.5, cx - w * 0.2, 0.17, fz + face * 0.75, 0xbdb8ac); sgb(1.5, 0.12, 0.8, cx - w * 0.2, 2.6, fz + face * 0.4, 0x3a3d46);
   sgwin(1.6, 1.5, 0.14, cx + w * 0.22, 1.5, fz + face * 0.05);
@@ -4989,14 +4993,18 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
 // ---- the mall ----
 (function buildMall() {
   const x0 = 668, x1 = 856, z0 = 392, z1 = 452, mid = (x0 + x1) / 2, W = x1 - x0, D = z1 - z0;
-  sgb(W, 9.5, D, mid, 4.75, (z0 + z1) / 2, 0xcfc3b0); sgb(W + 1, 0.8, D + 1, mid, 9.9, (z0 + z1) / 2, 0x6b6f78);
-  for (const [ax, aw, col] of [[x0 + 18, 36, 0x8c2f3a], [x1 - 18, 36, 0x2f4f7a]]) { sgb(aw, 14, D + 6, ax, 7, (z0 + z1) / 2 + 3, col); sgb(aw + 1, 0.8, D + 7, ax, 14.4, (z0 + z1) / 2 + 3, 0x4a4d55); }
+  if (CB) {
+    CB.addTyped(mid + SGDX, (z0 + z1) / 2 + SGDZ, W, D, 9.5, 'mall', { shop: 0 });
+    for (const [ax, aw, col] of [[x0 + 18, 36, 0x8c2f3a], [x1 - 18, 36, 0x2f4f7a]]) { CB.addTyped(ax + SGDX, (z0 + z1) / 2 + 3 + SGDZ, aw, D + 6, 14, 'mall', { shop: 1 }); sgb(aw, 2.6, 0.5, ax, 12.4, z1 + 6.2, col); }
+  } else {
+    sgb(W, 9.5, D, mid, 4.75, (z0 + z1) / 2, 0xcfc3b0); sgb(W + 1, 0.8, D + 1, mid, 9.9, (z0 + z1) / 2, 0x6b6f78);
+    for (const [ax, aw, col] of [[x0 + 18, 36, 0x8c2f3a], [x1 - 18, 36, 0x2f4f7a]]) { sgb(aw, 14, D + 6, ax, 7, (z0 + z1) / 2 + 3, col); sgb(aw + 1, 0.8, D + 7, ax, 14.4, (z0 + z1) / 2 + 3, 0x4a4d55); }
+  }
   sgb(W - 72, 3.2, 6, mid, 8.6, z1 + 1.5, 0xf2eee4);                                                 // fascia over the shop fronts
-  for (let x = x0 + 40; x < x1 - 40; x += 5.6) if (Math.abs(x - mid) > 17) sgwin(4.4, 3.6, 0.2, x, 2.6, z1 + 0.06, 1);   // shop windows
-  for (const ax of [x0 + 18, x1 - 18]) { for (let i = -2; i <= 2; i++) sgwin(4, 4, 0.2, ax + i * 6.4, 3.4, z1 + 3.1, 1); sgb(7, 2.4, 0.3, ax, 2.6, z1 + 3.1, 0x20242c); }
+  if (!CB) { for (let x = x0 + 40; x < x1 - 40; x += 5.6) if (Math.abs(x - mid) > 17) sgwin(4.4, 3.6, 0.2, x, 2.6, z1 + 0.06, 1); for (const ax of [x0 + 18, x1 - 18]) { for (let i = -2; i <= 2; i++) sgwin(4, 4, 0.2, ax + i * 6.4, 3.4, z1 + 3.1, 1); sgb(7, 2.4, 0.3, ax, 2.6, z1 + 3.1, 0x20242c); } }
   sgb(30, 11, 14, mid, 5.5, z1 + 7, 0xb8d6e4); sgb(31, 0.6, 15, mid, 11.2, z1 + 7, 0x4a4d55); sgwin(26, 9, 0.2, mid, 5, z1 + 14.1, 1); sgwin(0.2, 9, 12, mid - 15.1, 5, z1 + 7, 1); sgwin(0.2, 9, 12, mid + 15.1, 5, z1 + 7, 1);
   sgb(36, 0.4, 7, mid, 9.2, z1 + 17, 0xe8e6e0); for (const dx of [-16, -5.3, 5.3, 16]) sgb(0.6, 9, 0.6, mid + dx, 4.5, z1 + 19.8, 0xe8e6e0);
-  for (let i = 0; i < 14; i++) sgb(sgr(3, 5), sgr(1.4, 2.2), sgr(3, 5), x0 + 60 + i * 9, 11.4 + 0.8, z0 + sgr(10, 40), 0x8a8e96);
+  if (!CB) for (let i = 0; i < 14; i++) sgb(sgr(3, 5), sgr(1.4, 2.2), sgr(3, 5), x0 + 60 + i * 9, 11.4 + 0.8, z0 + sgr(10, 40), 0x8a8e96);
   sgSolid(x0, x1, z0, z1, 12); sgSolid(mid - 15, mid + 15, z1, z1 + 14, 11);
   sgSign('NEON MALL', 24, 5, '#14161c', '#ff4f8b', mid, 14.2, z1 + 14.4, 0, 0.55); sgSign('DEPARTMENT STORE', 28, 3.4, '#5a1a22', '#ffe8d0', x0 + 18, 11, z1 + 6.2, 0, 0.5); sgSign('CINEMA 12', 28, 3.4, '#14243a', '#7dd9ff', x1 - 18, 11, z1 + 6.2, 0, 0.5);
   sgSign('NEON MALL', 14, 3, '#14161c', '#38d6e8', 664, 7.5, 392 + 3, Math.PI / 2, 0.55);
@@ -5010,10 +5018,11 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
 // ---- strip mall and the park beside it ----
 (function buildStrip() {
   const x0 = 366, w = 86, z0 = 575, d = 16, names = ['PHARMACY', 'PIZZA', 'NAILS', 'VIDEO', 'DINER', 'BANK'], cols = [0x2e6f4f, 0xa0382c, 0x7a3a7a, 0x2f4f7a, 0xc8902a, 0x3a3f4c];
-  sgb(w, 5.4, d, x0 + w / 2, 2.7, z0 + d / 2, 0xd8d0c0); sgb(w + 0.6, 0.5, d + 0.6, x0 + w / 2, 5.6, z0 + d / 2, 0x6b6f78); sgb(w, 1.4, 0.4, x0 + w / 2, 6.2, z0 + d, 0xd8d0c0);
+  if (CB) CB.addTyped(x0 + w / 2 + SGDX, z0 + d / 2 + SGDZ, w, d, 5.8, 'strip', { shop: 1 });
+  else { sgb(w, 5.4, d, x0 + w / 2, 2.7, z0 + d / 2, 0xd8d0c0); sgb(w + 0.6, 0.5, d + 0.6, x0 + w / 2, 5.6, z0 + d / 2, 0x6b6f78); sgb(w, 1.4, 0.4, x0 + w / 2, 6.2, z0 + d, 0xd8d0c0); }
   const uw = w / 6;
   for (let i = 0; i < 6; i++) {
-    const ux = x0 + uw * (i + 0.5); sgb(uw - 0.4, 0.35, 2.4, ux, 3.9, z0 + d + 1.2, cols[i]); sgwin(uw - 3.4, 2.8, 0.16, ux - 0.6, 2.0, z0 + d + 0.05, 1); sgb(1.3, 2.3, 0.16, ux + uw / 2 - 2, 1.2, z0 + d + 0.08, 0x20242c);
+    const ux = x0 + uw * (i + 0.5); sgb(uw - 0.4, 0.35, 2.4, ux, 3.9, z0 + d + 1.2, cols[i]); if (!CB) { sgwin(uw - 3.4, 2.8, 0.16, ux - 0.6, 2.0, z0 + d + 0.05, 1); sgb(1.3, 2.3, 0.16, ux + uw / 2 - 2, 1.2, z0 + d + 0.08, 0x20242c); }
     sgSign(names[i], uw - 2, 1.6, '#' + cols[i].toString(16).padStart(6, '0'), '#ffffff', ux, 5.3, z0 + d + 0.35, 0, 0.55);
   }
   sgSolid(x0, x0 + w, z0, z0 + d, 6); SGTOW.push([x0, z0, w, d, '#d8c8a8']);
@@ -5045,18 +5054,23 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
 // ---- big-box store and the parking garage ----
 (function buildBigBox() {
   const x0 = 662, w = 126, z0 = 580, d = 54;
-  sgb(w, 10, d, x0 + w / 2, 5, z0 + d / 2, 0xcfd2d6); sgb(w + 1, 0.8, d + 1, x0 + w / 2, 10.4, z0 + d / 2, 0x6b6f78); sgb(w, 4, 1.2, x0 + w / 2, 8.2, z0 + d + 0.6, 0x1f4aa0);
+  if (CB) CB.addTyped(x0 + w / 2 + SGDX, z0 + d / 2 + SGDZ, w, d, 10, 'bigbox', {});
+  else { sgb(w, 10, d, x0 + w / 2, 5, z0 + d / 2, 0xcfd2d6); sgb(w + 1, 0.8, d + 1, x0 + w / 2, 10.4, z0 + d / 2, 0x6b6f78); }
+  sgb(w, 4, 1.2, x0 + w / 2, 8.2, z0 + d + 0.6, 0x1f4aa0);
   sgb(24, 12, 3, x0 + 30, 6, z0 + d + 1.5, 0xe9e9ec); sgb(24, 3, 3.2, x0 + 30, 10.5, z0 + d + 1.5, 0x1f4aa0); sgwin(18, 4.6, 0.2, x0 + 30, 3, z0 + d + 3.1, 1); sgb(7, 3, 0.3, x0 + 30, 1.6, z0 + d + 3.1, 0x20242c);
   sgb(34, 0.4, 5, x0 + 100, 3.8, z0 + d + 2.5, 0x4a4d55); for (let i = 0; i < 4; i++) sgb(0.5, 3.8, 0.5, x0 + 86 + i * 9.5, 1.9, z0 + d + 4.6, 0xb8bcc2);
-  for (let i = 0; i < 8; i++) sgb(sgr(3, 5), 1.6, sgr(3, 5), x0 + 12 + i * 14, 11.2 + 0.8, z0 + sgr(10, 44), 0x8a8e96);
+  if (!CB) for (let i = 0; i < 8; i++) sgb(sgr(3, 5), 1.6, sgr(3, 5), x0 + 12 + i * 14, 11.2 + 0.8, z0 + sgr(10, 44), 0x8a8e96);
   sgSign('BIG VALUE', 34, 5, '#1f4aa0', '#ffd23a', x0 + w / 2, 8.4, z0 + d + 1.28, 0, 0.55);
   sgSolid(x0, x0 + w, z0, z0 + d, 11); SGTOW.push([x0, z0, w, d, '#b8bcc8']);
   // four-level parking garage
   const gx = 806, gz = 586, gw = 54, gd = 48, lv = 4, fh = 3.6;
-  for (let l = 0; l <= lv; l++) sgb(gw, 0.5, gd, gx + gw / 2, l * fh + 0.25, gz + gd / 2, 0x9a9ca2);
-  for (let i = 0; i <= 6; i++) for (const zz of [gz + 1, gz + gd - 1]) sgb(0.9, lv * fh, 0.9, gx + 1 + i * (gw - 2) / 6, lv * fh / 2, zz, 0x8a8c92);
-  for (let i = 0; i <= 5; i++) for (const xx of [gx + 1, gx + gw - 1]) sgb(0.9, lv * fh, 0.9, xx, lv * fh / 2, gz + 1 + i * (gd - 2) / 5, 0x8a8c92);
-  for (let l = 1; l <= lv; l++) { for (const zz of [gz + 0.2, gz + gd - 0.2]) sgb(gw, 1.0, 0.4, gx + gw / 2, l * fh + 0.9, zz, 0xb8bac0); for (const xx of [gx + 0.2, gx + gw - 0.2]) sgb(0.4, 1.0, gd, xx, l * fh + 0.9, gz + gd / 2, 0xb8bac0); }
+  if (CB) CB.addTyped(gx + gw / 2 + SGDX, gz + gd / 2 + SGDZ, gw, gd, lv * fh, 'garage', { levels: lv });
+  else {
+    for (let l = 0; l <= lv; l++) sgb(gw, 0.5, gd, gx + gw / 2, l * fh + 0.25, gz + gd / 2, 0x9a9ca2);
+    for (let i = 0; i <= 6; i++) for (const zz of [gz + 1, gz + gd - 1]) sgb(0.9, lv * fh, 0.9, gx + 1 + i * (gw - 2) / 6, lv * fh / 2, zz, 0x8a8c92);
+    for (let i = 0; i <= 5; i++) for (const xx of [gx + 1, gx + gw - 1]) sgb(0.9, lv * fh, 0.9, xx, lv * fh / 2, gz + 1 + i * (gd - 2) / 5, 0x8a8c92);
+    for (let l = 1; l <= lv; l++) { for (const zz of [gz + 0.2, gz + gd - 0.2]) sgb(gw, 1.0, 0.4, gx + gw / 2, l * fh + 0.9, zz, 0xb8bac0); for (const xx of [gx + 0.2, gx + gw - 0.2]) sgb(0.4, 1.0, gd, xx, l * fh + 0.9, gz + gd / 2, 0xb8bac0); }
+  }
   for (let l = 0; l < lv; l++) for (let i = 0; i < 9; i++) if (SGR() < 0.55) sgCar(gx + 6 + (i % 5) * 10 + (i > 4 ? 4 : 0), gz + 8 + (i > 4 ? 28 : 0) + (l % 2) * 2, Math.PI / 2 * (SGR() < 0.5 ? 1 : 3), sgp(SGCARS));
   sgSolid(gx, gx + gw, gz, gz + gd, 15); SGTOW.push([gx, gz, gw, gd, '#8c8e94']);
   sgSign('PARKING', 14, 2.6, '#14243a', '#7dd9ff', gx + gw / 2, lv * fh + 2.3, gz + gd + 0.6, 0, 0.5);
@@ -5066,10 +5080,15 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
 
 // ---- Seaside Tower, the beachfront condos and the boardwalk ----
 (function buildSeaside() {
-  sgb(64, 6, 42, 407, 3, 790, 0xd9d2c4); sgb(65, 0.5, 43, 407, 6.2, 790, 0x6b6f78); sgFacade(407, 790, 64, 42, 0, 1, 6, 'SNEW', { bay: 5, ww: 3.4, wh: 3.4, g: 1, skip: 0.15 }); sgSolid(375, 439, 769, 811, 7);
-  const th = 22 * 3.3; sgb(26, th, 26, 410, 6 + th / 2, 786, 0xdcd6ca); sgb(27, 0.8, 27, 410, 6 + th + 0.4, 786, 0x4a4d55); sgb(8, 5, 8, 410, 6 + th + 3, 786, 0x8a8e96);
-  sgFacade(410, 786, 26, 26, 6, 22, 3.3, 'SNEW', { bay: 3.3, ww: 2, wh: 2.1 });
-  for (let f = 1; f < 22; f += 1) sgb(26.4, 0.2, 0.4, 410, 6 + f * 3.3, 799.2, 0xf0ece4);
+  const th = 22 * 3.3;
+  if (CB) { CB.addTyped(407 + SGDX, 790 + SGDZ, 64, 42, 6, 'strip', { shop: 1 }); CB.add(410 + SGDX, 786 + SGDZ, 26, 26, th + 6); }
+  else {
+    sgb(64, 6, 42, 407, 3, 790, 0xd9d2c4); sgb(65, 0.5, 43, 407, 6.2, 790, 0x6b6f78); sgFacade(407, 790, 64, 42, 0, 1, 6, 'SNEW', { bay: 5, ww: 3.4, wh: 3.4, g: 1, skip: 0.15 });
+    sgb(26, th, 26, 410, 6 + th / 2, 786, 0xdcd6ca); sgb(27, 0.8, 27, 410, 6 + th + 0.4, 786, 0x4a4d55); sgb(8, 5, 8, 410, 6 + th + 3, 786, 0x8a8e96);
+    sgFacade(410, 786, 26, 26, 6, 22, 3.3, 'SNEW', { bay: 3.3, ww: 2, wh: 2.1 });
+    for (let f = 1; f < 22; f += 1) sgb(26.4, 0.2, 0.4, 410, 6 + f * 3.3, 799.2, 0xf0ece4);
+  }
+  sgSolid(375, 439, 769, 811, 7);
   sgSolid(397, 423, 773, 799, 6 + th + 2); sgSign('SEASIDE', 18, 3.6, '#14161c', '#38d6e8', 410, 6 + th - 3, 799.4, 0, 0.5);
   SGTOW.push([375, 769, 64, 42, '#d9d2c4'], [397, 773, 26, 26, '#b8b0a0']);
   sgApt(518, 790, 62, 22, 6, sgp(STUCCO), { bs: 1, fh: 3.2 }); sgApt(592, 790, 62, 22, 6, sgp(STUCCO), { bs: 1, fh: 3.2 });
@@ -5089,6 +5108,7 @@ function hShadeS(c) { const r = (c >> 16 & 255) * 0.88, g = (c >> 8 & 255) * 0.8
   SGTOW.push([518 - 31, 779, 62, 22, '#c8c0d0'], [592 - 31, 779, 62, 22, '#c8c0d0']);
 })();
 
+if (CB) CB.finish();
 // ---------------- palms and trees ----------------
 (function buildPalms() {
   for (const [px, pz] of SGPALM) {
