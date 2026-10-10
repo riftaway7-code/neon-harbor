@@ -78,7 +78,7 @@ window.NH_ATMOS = function (env) {
   dome.frustumCulled = false; dome.renderOrder = 1000; scene.add(dome);
 
   const WAVES = `
-    float wave(vec2 p, float t, out vec2 grad) {
+    float wave(vec2 p, float t, float dist, out vec2 grad) {
       float h = 0.0; grad = vec2(0.0);
       vec2 D[6]; float K[6]; float A[6]; float S[6];
       D[0] = normalize(vec2(1.0, 0.35)); K[0] = 0.16; A[0] = 0.55; S[0] = 0.55;
@@ -89,8 +89,9 @@ window.NH_ATMOS = function (env) {
       D[5] = normalize(vec2(-0.9, 0.6)); K[5] = 4.4; A[5] = 0.014; S[5] = 2.4;
       for (int i = 0; i < 6; i++) {
         float ph = dot(D[i], p) * K[i] + t * S[i];
-        h += A[i] * sin(ph);
-        grad += D[i] * A[i] * K[i] * cos(ph);
+        float fd = clamp((6.2832 / K[i] / (dist * 0.0022 + 0.001) - 2.0) / 6.0, 0.0, 1.0);
+        h += A[i] * fd * sin(ph);
+        grad += D[i] * A[i] * fd * K[i] * cos(ph);
       }
       return h;
     }
@@ -113,7 +114,7 @@ window.NH_ATMOS = function (env) {
         vec3 V = normalize(cameraPosition - vW);
         float dist = length(cameraPosition - vW);
         vec2 g;
-        float h = wave(vW.xz, uTime, g);
+        float h = wave(vW.xz, uTime, dist, g);
         float damp = 1.0 / (1.0 + dist * 0.012);
         vec3 n = normalize(vec3(-g.x * damp, 1.0, -g.y * damp));
         float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, V), 0.0), 5.0);

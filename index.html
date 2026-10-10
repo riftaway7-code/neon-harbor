@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Neon Harbor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -224,6 +225,9 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
 <script src="assets/js/buildings.js"></script>
 <script src="assets/js/houses.js"></script>
 <script src="assets/js/atmosphere.js"></script>
+<script src="assets/models/aircraft.js"></script>
+<script src="assets/models/airport_kit.js"></script>
+<script src="assets/js/airport.js"></script>
 <script>
 (() => {
 'use strict';
@@ -845,6 +849,7 @@ function randSidewalk() {
   return { x: p[0], z: p[1] };
 }
 function streetAt(x, z) {
+  if (AIR) { const az = AIR.zone(x, z); if (az) return az; }
   if (z > WORLD / 2 + 20 && x > SGW.x0 && x < SGW.x1) return sgStreetAt(x, z);
   const i = clamp(Math.round(x / PITCH), -R, R), j = clamp(Math.round(z / PITCH), -R, R);
   const dx = Math.abs(x - i * PITCH), dz = Math.abs(z - j * PITCH);
@@ -1416,7 +1421,8 @@ function laneSpawn() {
   const x = axis === 'x' ? p : road * PITCH - sgn * LANE, z = axis === 'x' ? road * PITCH + sgn * LANE : p;
   return { axis, road, sgn, p, x, z };
 }
-function refPos() { return player.car ? player.car : player; }
+let AIR = null;
+function refPos() { return player.car ? player.car : player.plane ? player.plane : player; }
 function farFromCars(x, z, d) { for (const c of cars) if (Math.abs(c.x - x) < d && Math.abs(c.z - z) < d) return false; return true; }
 function spawnTraffic(kind, minD, maxD) {
   const t = refPos();
@@ -2656,7 +2662,7 @@ bigmap.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%
 document.body.appendChild(bigmap);
 function drawBigMap() {
   // view box covers the city and Millbrook County: x -348..868, z -640..348
-  const VX0 = -WORLD / 2 - 190, VZ0 = COUNTRY.z0, VW = COUNTRY.x1 - VX0, VH = 900 - VZ0;
+  const VX0 = -WORLD / 2 - 190, VZ0 = COUNTRY.z0, VW = (AIR ? AIR.AP.x1 + 50 : COUNTRY.x1) - VX0, VH = 900 - VZ0;
   const k = Math.min(window.innerWidth * 0.92 / VW, window.innerHeight * 0.86 / VH), SW = Math.floor(VW * k), SH = Math.floor(VH * k);
   if (bigmap.width !== SW || bigmap.height !== SH) { bigmap.width = SW; bigmap.height = SH; }
   const g = bigmap.getContext('2d'), X = v => (v - VX0) * k, Z = v => (v - VZ0) * k;
@@ -2669,7 +2675,9 @@ function drawBigMap() {
   g.drawImage(suburbC, X(SUB.x0), Z(SUB.z0), (SUB.x1 - SUB.x0) * k, (SUB.z1 - SUB.z0) * k);
   drawSouthMap(g, X, Z, k);
   drawLinkRoad(g, X, Z, k);
+  if (AIR) AIR.drawMap(g, X, Z, k, true);
   try { g.filter = 'none'; } catch (e) { /* unsupported */ }
+  if (AIR) AIR.drawBlips(g, X, Z, k);
   const dot = (x, z, r, col) => { g.fillStyle = col; g.strokeStyle = '#0a0e18'; g.lineWidth = 2; g.beginPath(); g.arc(X(x), Z(z), r, 0, TAU); g.stroke(); g.fill(); };
   g.fillStyle = '#ff4d5a'; g.strokeStyle = '#0a0e18'; g.lineWidth = 2; g.beginPath(); g.rect(X(SHOP.door.x) - 6, Z(SHOP.door.z) - 6, 12, 12); g.stroke(); g.fill();
   g.font = '700 13px sans-serif'; g.fillStyle = '#ffd5d8'; g.fillText('HARBOR ARMS', X(SHOP.door.x) + 10, Z(SHOP.door.z) + 4);
@@ -3052,7 +3060,7 @@ function updateArmor() {
 // ---- camera distance (C): close, normal, far ----
 const CAM = { mode: 1, scales: [0.65, 1, 1.5], names: ['Close camera', 'Normal camera', 'Far camera'], zoom: 1, get scale() { return this.scales[this.mode] * this.zoom; } };
 function zoomCam(f) { CAM.zoom = clamp(CAM.zoom * f, 0.3, 4); }
-function cycleCamera() { CAM.mode = (CAM.mode + 1) % 3; toast(CAM.names[CAM.mode], '', 'var(--cyan)'); }
+function cycleCamera() { if (AIR && AIR.flying) { AIR.cycleView(); return; } CAM.mode = (CAM.mode + 1) % 3; toast(CAM.names[CAM.mode], '', 'var(--cyan)'); }
 
 // ---- achievements, checked once a second and remembered between visits ----
 const ACH_KEY = 'neon-harbor-ach-v1';
@@ -3157,6 +3165,7 @@ const HINTS = [
   { id: 'race', when: () => !!player.car && RACE.state === 'idle' && Math.hypot(player.x - RACE.start.x, player.z - RACE.start.z) < 70, text: 'Drive into the purple ring to start a timed street race. Every checkpoint adds a few seconds.' },
   { id: 'rain', when: () => ENV.rain > 0.5, text: 'It is raining. Press N to clear the weather, or T to skip three hours.' },
   { id: 'lowhp', when: () => player.hp < 35 && player.hp > 0, text: 'Health is low. A first-aid kit at Harbor Arms restores it for $75.' },
+  { id: 'fly', when: () => !!AIR && !AIR.flying && Math.hypot(player.x - 1330, player.z + 300) < 160, text: 'Harborview Airport: press F next to an airliner at the gates to start flying passengers for cash. Follow the yellow line on the minimap.' },
   { id: 'heli', when: () => HELI.on && !HELI.leave, text: 'A police helicopter is tracking you. Get under cover or into the garage to lose it.' }
 ];
 const HINT = { gap: 12, show: 0, check: 0 };
@@ -3183,9 +3192,9 @@ const crnd = (a, b) => a + CR() * (b - a);
 
 // Keeps something (anything with x and z) inside the city or the countryside. Replaces the old square clamp.
 function clampXZ(o, m) {
-  const lim = WORLD / 2 - m, zl = COUNTRY.z0 + m, zh = COUNTRY.z1 - m;
-  if (o.z < -lim && o.x > -lim) { o.x = clamp(o.x, NORTH.x0 + m, COUNTRY.x1 - m); o.z = Math.max(o.z, zl); return; }
-  if (o.x > lim && o.z < SUB.z1 - m) { o.x = Math.min(o.x, COUNTRY.x1 - m); o.z = Math.max(o.z, -lim); return; }
+  const lim = WORLD / 2 - m, zl = COUNTRY.z0 + m, zh = COUNTRY.z1 - m, ex = 2260;
+  if (o.z < -lim && o.x > -lim) { o.x = clamp(o.x, NORTH.x0 + m, ex - m); o.z = Math.max(o.z, zl); return; }
+  if (o.x > lim && o.z < SUB.z1 - m) { o.x = Math.min(o.x, ex - m); o.z = Math.max(o.z, -lim); return; }
   const far = m < 5 ? WORLD / 2 + 190 : WORLD / 2 + 16;   // on foot you can wade out to the buoys; cars stay on the sand
   const zfar = (o.x > SGW.x0 - 1 && o.x < SGW.x1 + 1) ? SGW.shore - 3 : far;   // Southgate stands on the sea south of downtown
   o.x = clamp(o.x, -far, lim); o.z = clamp(o.z, -lim, zfar);
@@ -3281,6 +3290,7 @@ const GRASS = (() => {
   function update(dt) {
     acc -= dt; if (acc > 0) return;
     acc = 0.3;
+    if (camera.position.y > 70) return;
     if (!root) {
       if (!loading) { loading = true; NHM.load('grass').then(m => { root = m; acc = 0; }); }
       return;
@@ -3517,6 +3527,7 @@ function drawCountryMap(mc) {
   drawSuburbMap(mc);
   drawSouthMap(mc, v => v, v => v, 1);
   drawLinkRoad(mc, v => v, v => v, 1);
+  if (AIR) AIR.drawMap(mc, v => v, v => v, 1, false);
 }
 
 // ---------------- per-frame ----------------
@@ -4001,6 +4012,7 @@ const spdN = speedo.querySelector('#spdN'), spdBar = speedo.querySelector('#spdB
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], _cd = new THREE.Vector3();
 function zoneName(x, z) {
   if (SHOP.inside) return 'Harbor Arms';
+  if (AIR && AIR.zone(x, z)) return 'Harborview Airport';
   if (x > WORLD / 2 && z < SUB.z0) return 'Millbrook County';
   if (x > SGW.x0 && x < SGW.x1 && z > WORLD / 2 + 20) return 'Southgate';
   if (x > WORLD / 2) return 'Linden Heights';
@@ -5431,6 +5443,8 @@ function nearestCar() {
 function toggleCar() {
   if (state !== 'play' || deadT > 0) return;
   if (menuOpen) { closeShop(); return; }
+  if (AIR && AIR.flying) { AIR.exit(); return; }
+  if (AIR && !player.car) { const pl = AIR.nearPlane(); if (pl) { AIR.enter(pl); return; } }
   if (!player.car && nearKeeper()) { openShop(); return; }
   if (player.car) exitCar(false); else { const c = nearestCar(); if (c) enterCar(c); }
 }
@@ -5453,6 +5467,7 @@ function updatePlayer(dt) {
   if (deadT > 0) { deadT -= dt; if (deadT <= 0) respawn(); return; }
   if (player.hp <= 0) { wasted(); return; }
   if (player.hurtT > 6 && player.hp < 100) player.hp = Math.min(100, player.hp + 3 * dt);
+  if (player.plane) { jumpPress = false; return; }
   if (player.car) { const c = player.car; player.x = c.x; player.z = c.z; player.vx = c.vx; player.vz = c.vz; jumpPress = false; return; }
   const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw), rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
   let mx = fx * inp.iy + rx * inp.ix, mz = fz * inp.iy + rz * inp.ix; const ml = Math.hypot(mx, mz);
@@ -5498,6 +5513,7 @@ function updateCamera(dt) {
     camera.position.set(Math.sin(a) * 150, 46, Math.cos(a) * 150); camera.lookAt(0, 22, 0);
     camera.fov = 62; camera.updateProjectionMatrix(); return;
   }
+  if (AIR && player.plane && AIR.updateCam(dt)) return;
   let tx, ty, tz, dist;
   if (player.car) {
     const c = player.car; tx = c.x; tz = c.z; ty = 1.4; dist = 9.5 * CAM.scale;
@@ -5533,6 +5549,7 @@ function drawMini() {
   for (const c of cars) if (c.kind === 'cop' && c.ctrl === 'cop') { mc.fillStyle = (Math.floor(clockT * 4) % 2) ? '#ff4d5a' : '#4d7dff'; mc.beginPath(); mc.arc(c.x, c.z, 4.2, 0, TAU); mc.fill(); }
   mc.setTransform(1, 0, 0, 1, 0, 0);
   drawExtraMarkers(mc, th, s, hw, rp);
+  if (AIR) AIR.drawRoute(mc, th, s, hw, rp);
   { const rx = SHOP.door.x - rp.x, rz = SHOP.door.z - rp.z, c = Math.cos(th), sn = Math.sin(th), sx = (rx * c + rz * sn) * s, sy = (-rx * sn + rz * c) * s;
     if (Math.hypot(sx, sy) < hw - 12) { mc.fillStyle = '#ff4d5a'; mc.strokeStyle = '#0a0e18'; mc.lineWidth = 3; mc.beginPath(); mc.rect(hw + sx - 7, hw + sy - 7, 14, 14); mc.stroke(); mc.fill(); } }
   mc.fillStyle = '#ffffff'; mc.strokeStyle = '#0a0e18'; mc.lineWidth = 3;
@@ -5557,7 +5574,8 @@ function updateHud(dt) {
   el.street.textContent = streetAt(rp.x, rp.z);
   const sh = storyHud(); el.mt.textContent = sh[0]; el.ms.textContent = sh[1];
   let msg = '';
-  if (!inCar && deadT <= 0) { if (nearKeeper()) msg = '<b>F</b>Browse the shop'; else { const c = nearestCar(); if (c) msg = '<b>F</b>Enter vehicle'; } }
+  if (player.plane) { const pf = AIR.flying; msg = pf && pf.grounded && Math.hypot(pf.vx, pf.vz) < 4 ? '<b>F</b>Get out' : ''; }
+  else if (!inCar && deadT <= 0) { if (nearKeeper()) msg = '<b>F</b>Browse the shop'; else { const c = nearestCar(); if (c) msg = '<b>F</b>Enter vehicle'; else if (AIR) msg = AIR.promptText(); } }
   else if (inCar && spd < 2) msg = '<b>F</b>Exit vehicle';
   if (level > 0 && copsNear < 14 && bustT > 0.1) msg = 'Getting arrested… keep moving';
   if (msg) { el.prompt.innerHTML = msg; el.prompt.hidden = false; } else el.prompt.hidden = true;
@@ -5598,6 +5616,15 @@ function updAudio() {
 }
 function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; }
 
+AIR = typeof NH_AIRPORT === 'function' ? NH_AIRPORT({
+  THREE, scene, camera, NHM, solids, ENV, player, keys, clamp, lerp, rnd, cvs, tex, po, mulberry, grassTex, groundDetail, GRASS, aniso: maxAniso, pointInSolid, emit, noiseBurst, toast,
+  shake: v => { shake = Math.max(shake, v); }, audio: () => ({ AC, master, muted }), noiseBuffer: () => noiseBuf, refPos,
+  fadeOut: cb => { el.fade.classList.add('on'); setTimeout(() => { cb(); el.fade.classList.remove('on'); }, 650); },
+  camSnap: (x, z) => { camera.position.set(x + 6, 3, z + 6); }, camScale: () => CAM.scale, waterMat: ATM ? ATM.water : null, ATM,
+  addCash, setCamYaw: v => { camYaw = v; },
+  setFog: f => { if (f == null) return; scene.fog.far = f; scene.fog.near = f * 0.12; if (ATM) { ATM.water.uniforms.uFogNear.value = scene.fog.near; ATM.water.uniforms.uFogFar.value = f; } }
+}) : null;
+
 // ======================= Game loop and states =======================
 function step(dt) {
   if (state === 'play') updatePlayer(dt);
@@ -5609,7 +5636,7 @@ function update(dt) {
   clockT += 0;
   updatePickups(dt); updateParticles(dt); updateShop(dt); updateExtras(dt);
   if (scene.userData.beam) scene.userData.beam.rotation.y += dt * 0.6;
-  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); }
+  if (state === 'play') { updateWanted(dt); updateBust(dt); updateHud(dt); drawMini(); updAudio(); updateWeapons(dt); if (AIR) AIR.update(dt); }
   updateCamera(dt);
 }
 
@@ -5676,7 +5703,7 @@ function rtxFrame(dt) {
   sun.target.updateMatrixWorld();
 }
 const DEVCAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1] ? location.hash.match(/cam=([-\d.,]+)/)[1].split(',').map(Number) : null;
-window.NHD = { renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
+window.NHD = { AIR, renderer, SYS, applyQuality, scene, camera, GRASS, NHM, RTX, cars, DEVCAM, player, HUM, peds, SHOUSES, SITES, ENV, ATM, keys, inp, update, step: n => { for (let i = 0; i < n; i++) update(1 / 60); }, get state() { return state; }, set state(v) { state = v; }, get cut() { return CUT.on; } };
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
