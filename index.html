@@ -1454,6 +1454,8 @@ function newCar(kind, ctrl) {
   const c = { kind, ctrl, m, x: 0, z: 0, h: 0, vx: 0, vz: 0, vf: 0, hp: 100, r: 1.15, axis: 'x', sgn: 1, road: 0, ni: 1, cruise: rnd(11, 16), mode: 'grid', stuck: 0, gridCd: 0, smokeT: 0, wreckT: 0, hitCd: 0, ghost: 0, blinkT: Math.random(), target: null, color };
   cars.push(c); return c;
 }
+function wreckCount() { let n = 0; for (const c of cars) if (c.ctrl === 'wreck') n++; return n; }
+function oldestWreck() { let t = 0; for (const c of cars) if (c.ctrl === 'wreck' && c.wreckT > t) t = c.wreckT; return t; }
 function removeCar(c) { scene.remove(c.m.g); const i = cars.indexOf(c); if (i >= 0) cars.splice(i, 1); }
 NHM.load('cars').then(root => {
   if (!root) return;
@@ -1690,7 +1692,7 @@ function updateCars(dt) {
     if (c.hp < 38) { c.smokeT -= dt; if (c.smokeT <= 0) { c.smokeT = c.hp <= 0 ? 0.07 : 0.16; smoke(c.x + Math.sin(c.h) * 1.6, c.z + Math.cos(c.h) * 1.6, c.hp <= 0); } }
     if (c.ctrl === 'wreck') {
       c.wreckT += dt;
-      if (c.wreckT > 25 && Math.hypot(c.x - refPos().x, c.z - refPos().z) > 60) { const kind = c.kind; removeCar(c); if (kind === 'civ') spawnTraffic('civ', 120, 400); break; }
+      if ((c.wreckT > 25 && Math.hypot(c.x - refPos().x, c.z - refPos().z) > 60) || c.wreckT > 45 || (c.wreckT > 8 && wreckCount() > 10 && c.wreckT === oldestWreck())) { const kind = c.kind; removeCar(c); if (kind === 'civ') spawnTraffic('civ', 120, 400); break; }
     }
   }
   // keep traffic count topped up and recycle cars that wander far away
