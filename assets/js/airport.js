@@ -530,14 +530,14 @@ window.NH_AIRPORT = function (env) {
     const P = JOB.P; if (JOB.st === 'none' || !P) return;
     const F = FIELDS[JOB.to], d = distTo(P, F);
     if (JOB.st === 'boarding') {
-      JOB.t += dt; JOB.board = Math.min(JOB.pax, Math.floor(JOB.pax * JOB.t / JOB.dur));
-      jobEl.a.textContent = 'FLIGHT HV ' + JOB.no + '  ·  BOARDING'; jobEl.b.textContent = JOB.board + ' / ' + JOB.pax + ' passengers'; jobEl.bar.style.display = 'block'; jobEl.fill.style.width = (100 * JOB.t / JOB.dur) + '%';
+      JOB.t += dt; if (keys.KeyS) JOB.t = JOB.dur; JOB.board = Math.min(JOB.pax, Math.floor(JOB.pax * JOB.t / JOB.dur));
+      jobEl.a.textContent = 'FLIGHT HV ' + JOB.no + '  ·  BOARDING'; jobEl.b.textContent = JOB.board + ' / ' + JOB.pax + ' passengers  ·  hold S to skip'; jobEl.bar.style.display = 'block'; jobEl.fill.style.width = (100 * JOB.t / JOB.dur) + '%';
       if (JOB.t >= JOB.dur) { if (JOB.push) { JOB.st = 'pushback'; JOB.t = 0; JOB.dur = 20; state.tug.visible = true; env.toast('Pushback', 'Doors closed. Pushing back from the gate.', 'var(--cyan)'); } else { JOB.st = 'enroute'; P.hold = false; env.toast('Cleared for takeoff', 'Fly to ' + F.name + '. Follow the yellow line on the minimap.', 'var(--good)'); } JOB.landed = 0; }
     } else if (JOB.st === 'pushback') {
-      JOB.t += dt; const s = clamp(JOB.t / JOB.dur, 0, 1), e = s * s * (3 - 2 * s);
+      JOB.t += dt * (keys.KeyS ? 6 : 1); const s = clamp(JOB.t / JOB.dur, 0, 1), e = s * s * (3 - 2 * s);
       P.x = P.home.x; P.z = P.home.z - 52 * e; P.q.setFromAxisAngle(_v.set(0, 1, 0), Math.PI * e); P.vx = P.vy = P.vz = 0; sync(P);
       if (state.tug) { _v.set(0, 0, 15.5).applyQuaternion(P.q); state.tug.position.set(P.x + _v.x, 0, P.z + _v.z); state.tug.rotation.y = Math.PI * e + Math.PI; }
-      jobEl.a.textContent = 'FLIGHT HV ' + JOB.no + '  ·  PUSHBACK'; jobEl.b.textContent = 'Stand by'; jobEl.fill.style.width = (100 * s) + '%';
+      jobEl.a.textContent = 'FLIGHT HV ' + JOB.no + '  ·  PUSHBACK'; jobEl.b.textContent = 'Stand by  ·  hold S to speed up'; jobEl.fill.style.width = (100 * s) + '%';
       if (s >= 1) { JOB.st = 'enroute'; P.hold = false; state.tug.visible = false; setSolids(P, false); env.toast('Cleared to taxi', 'Fly to ' + F.name + '. Follow the yellow line on the minimap.', 'var(--good)'); }
     } else if (JOB.st === 'enroute') {
       const V = Math.hypot(P.vx, P.vz), eta = Math.max(0, Math.round(d / Math.max(V, 60)));
