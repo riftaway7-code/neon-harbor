@@ -2523,7 +2523,7 @@ function updateVehicleFx(dt) {
 
 // ======================= Police air support and roadblocks =======================
 // Helicopter arrives at 4+ stars, circles you with a searchlight and fires. Roadblocks appear on your road at 3+ stars.
-const HELI = { on: false, leave: false, ang: 0, fireT: 1.5, blinkT: 0, roadT: 20 };
+const HELI = { on: false, leave: false, ang: 0, fireT: 1.5, blinkT: 0, roadT: 20, downT: 0 };
 const heliGroup = new THREE.Group(), heliSpin = new THREE.Group(), heliTail = new THREE.Group();
 (function buildHeli() {
   const dark = new THREE.MeshLambertMaterial({ color: 0x23262d, emissive: 0x0c0d10 }), glass = new THREE.MeshLambertMaterial({ color: 0x2e5a7a, emissive: 0x0e1c28 }), steel = new THREE.MeshLambertMaterial({ color: 0x3a3e48 });
@@ -2555,7 +2555,8 @@ const sl = { cone: null, pool: null };
 const _hd = new THREE.Vector3(), _hq = new THREE.Quaternion(), _down = new THREE.Vector3(0, -1, 0);
 
 function updateHeli(dt) {
-  const want = level >= 4 && state === 'play' && deadT <= 0, rp = refPos(), p = heliGroup.position;
+  HELI.downT = Math.max(0, HELI.downT - dt);
+  const want = level >= 4 && state === 'play' && deadT <= 0 && HELI.downT <= 0, rp = refPos(), p = heliGroup.position;
   if (want && !HELI.on) {
     HELI.on = true; HELI.leave = false; heliGroup.visible = true; HELI.ang = rnd(0, TAU); HELI.fireT = 2;
     p.set(rp.x + Math.cos(HELI.ang) * 170, 55, rp.z + Math.sin(HELI.ang) * 170);
@@ -2563,6 +2564,16 @@ function updateHeli(dt) {
   }
   if (!want && HELI.on) HELI.leave = true;
   if (!HELI.on) return;
+  if (player.plane && !HELI.leave && Math.hypot(rp.x - p.x, rp.y - p.y, rp.z - p.z) < 11) {
+    HELI.on = false; HELI.downT = 150; heliGroup.visible = false; sl.cone.visible = sl.pool.visible = false;
+    const B = booms.find(b => b.t <= 0) || booms[0]; B.t = 0.5; B.m.visible = true; B.m.position.set(p.x, p.y, p.z);
+    for (let i = 0; i < 70; i++) emit(p.x, p.y, p.z, rnd(-14, 14), rnd(-4, 12), rnd(-14, 14), rnd(0.8, 2), 1, rnd(0.35, 0.8), 0.12);
+    for (let i = 0; i < 40; i++) emit(p.x, p.y, p.z, rnd(-7, 7), rnd(-2, 8), rnd(-7, 7), rnd(1.5, 3), 0.12, 0.12, 0.14);
+    noiseBurst(1, 0.5); shake = Math.max(shake, 0.5);
+    heat = Math.min(heat, 89); cash += 1500;
+    toast('Helicopter down', 'You rammed it out of the sky. +$1500', 'var(--good)');
+    return;
+  }
   let tx, ty, tz;
   if (HELI.leave) { tx = p.x + 120; ty = 95; tz = p.z + 60; }
   else { HELI.ang += dt * 0.3; tx = rp.x + Math.cos(HELI.ang) * 42; tz = rp.z + Math.sin(HELI.ang) * 42; ty = 42; }
