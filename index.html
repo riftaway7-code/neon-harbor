@@ -180,6 +180,7 @@ html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--fg);fo
     </dl>
     <div class="opts">
       <label>Graphics <select id="optQ"><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option><option value="rtx">RTX</option></select></label>
+      <label>Speed units <select id="optUnits"><option value="kmh">km/h</option><option value="mph">MPH</option></select></label>
       <label>Volume <input id="optVol" type="range" min="0" max="100" value="50"></label>
       <label><input id="optFps" type="checkbox"> Show FPS</label>
       <button id="optReset" type="button">Reset progress</button>
@@ -2704,7 +2705,7 @@ function drawExtraMarkers(mc, th, s, hw, rp) {
 
 // ======================= Systems: saving, settings, FPS, full map, stats, and the per-frame hook =======================
 const SAVE_KEY = 'neon-harbor-save-v1', SET_KEY = 'neon-harbor-settings-v1';
-const SYS = { inited: false, saveT: 8, statT: 0, fpsT: 0, frames: 0, mapT: 0, mapOpen: false, vol: 0.5, quality: 'high', showFps: false };
+const SYS = { inited: false, saveT: 8, statT: 0, fpsT: 0, frames: 0, mapT: 0, mapOpen: false, vol: 0.5, quality: 'high', showFps: false, mph: false };
 const STAT = { dist: 0, time: 0 };
 
 // ---- save / load (browser storage can be unavailable, so every access is wrapped) ----
@@ -2738,7 +2739,9 @@ function initExtras() {
 }
 
 // ---- settings ----
-function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify({ vol: SYS.vol, quality: SYS.quality, fps: SYS.showFps })); } catch (e) { /* ignore */ } }
+const spdK = () => SYS.mph ? 2.23694 : 3.6, spdU = () => SYS.mph ? 'MPH' : 'KM/H';
+function applyUnits() { const a = $('spdu'), b = $('spdUnit'); if (a) a.textContent = spdU().toLowerCase(); if (b) b.textContent = spdU(); }
+function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify({ vol: SYS.vol, quality: SYS.quality, fps: SYS.showFps, mph: SYS.mph })); } catch (e) { /* ignore */ } }
 function applyQuality() {
   const touchDev = matchMedia('(pointer:coarse)').matches;
   const ratio = touchDev ? { low: 0.75, med: 1, high: 1, rtx: 1 }[SYS.quality] || 1 : { low: 1, med: 1.25, high: 1.75, rtx: 2 }[SYS.quality] || 1.75;
@@ -2751,13 +2754,15 @@ fpsEl.style.cssText = 'position:fixed;right:10px;top:calc(8px + env(safe-area-in
 document.body.appendChild(fpsEl);
 (function wireSettings() {
   if (matchMedia('(pointer:coarse)').matches) SYS.quality = 'med';
-  try { const s = JSON.parse(localStorage.getItem(SET_KEY) || 'null'); if (s) { SYS.vol = clamp(+s.vol || 0, 0, 1); SYS.quality = s.quality || 'high'; SYS.showFps = !!s.fps; } } catch (e) { /* defaults */ }
+  try { const s = JSON.parse(localStorage.getItem(SET_KEY) || 'null'); if (s) { SYS.vol = clamp(+s.vol || 0, 0, 1); SYS.quality = s.quality || 'high'; SYS.showFps = !!s.fps; SYS.mph = !!s.mph; } } catch (e) { /* defaults */ }
+  const u = $('optUnits'); if (u) { u.value = SYS.mph ? 'mph' : 'kmh'; u.addEventListener('change', () => { SYS.mph = u.value === 'mph'; applyUnits(); saveSettings(); }); }
   const q = $('optQ'), v = $('optVol'), f = $('optFps'), r = $('optReset');
   if (q) { q.value = SYS.quality; q.addEventListener('change', () => { SYS.quality = q.value; applyQuality(); saveSettings(); }); }
   if (v) { v.value = Math.round(SYS.vol * 100); v.addEventListener('input', () => { SYS.vol = v.value / 100; applyVolume(); saveSettings(); }); }
   if (f) { f.checked = SYS.showFps; f.addEventListener('change', () => { SYS.showFps = f.checked; fpsEl.style.display = f.checked ? 'block' : 'none'; saveSettings(); }); }
   if (r) r.addEventListener('click', () => { if (r.dataset.arm === '1') { r.dataset.arm = ''; r.textContent = 'Reset progress'; resetGame(); } else { r.dataset.arm = '1'; r.textContent = 'Press again to confirm'; setTimeout(() => { r.dataset.arm = ''; r.textContent = 'Reset progress'; }, 3000); } });
   fpsEl.style.display = SYS.showFps ? 'block' : 'none';
+  applyUnits();
   if (SYS.quality !== 'high' || matchMedia('(pointer:coarse)').matches) applyQuality();
 })();
 
@@ -4113,7 +4118,8 @@ $('hud').appendChild(hud2);
 const speedo = document.createElement('div');
 speedo.className = 'pad';
 speedo.style.cssText = 'left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;font-family:var(--display);font-weight:800;color:var(--fg);text-shadow:0 2px 10px rgba(0,0,0,.8);pointer-events:none;display:none';
-speedo.innerHTML = '<div style="font-size:40px;line-height:1;font-variant-numeric:tabular-nums"><span id="spdN">0</span></div><div style="font-size:12px;letter-spacing:.2em;color:var(--dim)">KM/H</div><div style="width:120px;height:4px;margin:4px auto 0;background:rgba(255,255,255,.18);border-radius:2px;overflow:hidden"><i id="spdBar" style="display:block;height:100%;width:0;background:var(--amber)"></i></div>';
+speedo.innerHTML = '<div style="font-size:40px;line-height:1;font-variant-numeric:tabular-nums"><span id="spdN">0</span></div><div style="font-size:12px;letter-spacing:.2em;color:var(--dim)" id="spdUnit">KM/H</div><div style="width:120px;height:4px;margin:4px auto 0;background:rgba(255,255,255,.18);border-radius:2px;overflow:hidden"><i id="spdBar" style="display:block;height:100%;width:0;background:var(--amber)"></i></div>';
+applyUnits();
 $('hud').appendChild(speedo);
 const spdN = speedo.querySelector('#spdN'), spdBar = speedo.querySelector('#spdBar');
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], _cd = new THREE.Vector3();
@@ -4130,7 +4136,7 @@ function updateHud2(dt) {
   if (state !== 'play') return;
   const car = player.car, spd = car ? Math.hypot(car.vx, car.vz) : 0;
   speedo.style.display = car ? 'block' : 'none';
-  if (car) { spdN.textContent = Math.round(spd * 3.6); spdBar.style.width = clamp(spd / 40 * 100, 0, 100) + '%'; spdBar.style.background = BOOST.on ? '#b07dff' : spd > 34 ? 'var(--red)' : 'var(--amber)'; }
+  if (car) { spdN.textContent = Math.round(spd * spdK()); spdBar.style.width = clamp(spd / 40 * 100, 0, 100) + '%'; spdBar.style.background = BOOST.on ? '#b07dff' : spd > 34 ? 'var(--red)' : 'var(--amber)'; }
   hud2T -= dt; if (hud2T > 0) return;
   hud2T = 0.2;
   camera.getWorldDirection(_cd);
@@ -4463,7 +4469,7 @@ function updateSpeedcams(dt) {
     if (Math.hypot(car.x - c.x, car.z - c.z) > c.r) continue;
     SPEEDCAM.cool = 20; SPEEDCAM.fines++; const fine = Math.min(cash, SPEEDCAM.fine); cash -= fine;
     camFlash.style.transition = 'none'; camFlash.style.opacity = 0.7; requestAnimationFrame(() => { camFlash.style.transition = 'opacity .4s'; camFlash.style.opacity = 0; });
-    toast('Speed camera', Math.round(spd * 3.6) + ' km/h, fined $' + fine, 'var(--red)'); break;
+    toast('Speed camera', Math.round(spd * spdK()) + ' ' + spdU().toLowerCase().replace('mph', 'mph') + ', fined $' + fine, 'var(--red)'); break;
   }
 }
 ACH.push({ id: 'fined', name: 'Say Cheese', test: () => SPEEDCAM.fines >= 1 });
@@ -5679,7 +5685,7 @@ function updateHud(dt) {
   starEls.forEach((s, i) => s.classList.toggle('on', i < level));
   el.stars.classList.toggle('chase', level > 0 && copsNear < 140);
   const spd = player.car ? Math.hypot(player.car.vx, player.car.vz) : Math.hypot(player.vx, player.vz);
-  el.spd.textContent = Math.round(spd * 3.6);
+  el.spd.textContent = Math.round(spd * spdK());
   el.hp.style.transform = 'scaleX(' + clamp(player.hp / 100, 0, 1) + ')';
   el.hp.style.background = player.hp < 30 ? 'var(--red)' : 'var(--good)';
   const inCar = !!player.car; el.carw.style.visibility = el.carl.style.visibility = inCar ? 'visible' : 'hidden';
